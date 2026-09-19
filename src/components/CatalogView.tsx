@@ -20,48 +20,41 @@ const stockToneClass: Record<'ok' | 'low' | 'out', string> = {
 }
 
 export function CatalogView({ items, onSave, onRemove, onReset }: Props) {
+  const [search, setSearch] = useState('')
   const [brandFilter, setBrandFilter] = useState<string>('all')
   const [categoryFilter, setCategoryFilter] = useState<string>('all')
   const [editing, setEditing] = useState<Product | undefined>()
   const [showForm, setShowForm] = useState(false)
+  const [manage, setManage] = useState(false)
 
   const brands = useMemo(() => visibleBrands().filter((b) => items.some((p) => p.brand === b)), [items])
 
-  const filtered = items.filter(
-    (p) => (brandFilter === 'all' || p.brand === brandFilter) && (categoryFilter === 'all' || p.category === categoryFilter),
-  )
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return items.filter(
+      (p) =>
+        (brandFilter === 'all' || p.brand === brandFilter) &&
+        (categoryFilter === 'all' || p.category === categoryFilter) &&
+        (!q || `${p.brand} ${p.model} ${p.series ?? ''}`.toLowerCase().includes(q)),
+    )
+  }, [items, search, brandFilter, categoryFilter])
 
   return (
     <div>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900">Каталог</h1>
-          <p className="text-sm text-slate-500">Все бренды площадки в одном месте.</p>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => {
-              if (confirm('Сбросить каталог к демо-данным? Ваши изменения будут потеряны.')) onReset()
-            }}
-            className="rounded border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100"
-          >
-            Сбросить к демо
-          </button>
-          <button
-            onClick={() => {
-              setEditing(undefined)
-              setShowForm(true)
-            }}
-            className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
-          >
-            + Добавить товар
-          </button>
-        </div>
+      <div className="mb-4">
+        <h1 className="text-xl font-semibold text-slate-900">Каталог</h1>
+        <p className="text-sm text-slate-500">Все бренды площадки в одном месте — найдите товар, посмотрите цену и наличие.</p>
       </div>
 
       <div className="mb-4 flex flex-wrap gap-3">
+        <input
+          className="min-w-[220px] flex-1 rounded border border-slate-300 px-3 py-2 text-sm"
+          placeholder="Поиск по модели или бренду"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
         <select
-          className="rounded border border-slate-300 px-2 py-1.5 text-sm"
+          className="rounded border border-slate-300 px-2 py-2 text-sm"
           value={brandFilter}
           onChange={(e) => setBrandFilter(e.target.value)}
         >
@@ -73,7 +66,7 @@ export function CatalogView({ items, onSave, onRemove, onReset }: Props) {
           ))}
         </select>
         <select
-          className="rounded border border-slate-300 px-2 py-1.5 text-sm"
+          className="rounded border border-slate-300 px-2 py-2 text-sm"
           value={categoryFilter}
           onChange={(e) => setCategoryFilter(e.target.value)}
         >
@@ -86,47 +79,36 @@ export function CatalogView({ items, onSave, onRemove, onReset }: Props) {
         </select>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-        <table className="min-w-full divide-y divide-slate-200 text-sm">
-          <thead className="bg-slate-50">
-            <tr>
-              <th className="px-3 py-2 text-left font-medium text-slate-600">Товар</th>
-              <th className="px-3 py-2 text-left font-medium text-slate-600">Категория</th>
-              <th className="px-3 py-2 text-left font-medium text-slate-600">Цена</th>
-              <th className="px-3 py-2 text-left font-medium text-slate-600">Остаток</th>
-              <th className="px-3 py-2"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {filtered.map((p) => {
-              const stock = stockLabel(p.stock)
-              return (
-                <tr key={p.id} className="hover:bg-slate-50">
-                  <td className="px-3 py-2">
-                    <div className="flex items-center gap-3">
-                      <ProductImage imageUrl={p.imageUrl} brand={p.brand} category={p.category} size="sm" />
-                      <div>
-                        <div className="font-medium text-slate-900">
-                          {p.brand} {p.model}
-                        </div>
-                        {p.series && <div className="text-xs text-slate-500">{p.series}</div>}
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-3 py-2 text-slate-600">{CATEGORY_LABELS[p.category as Category]}</td>
-                  <td className="px-3 py-2 text-slate-600">${p.priceUSD}</td>
-                  <td className="px-3 py-2">
-                    <span className={`rounded px-2 py-0.5 text-xs font-medium ${stockToneClass[stock.tone]}`}>
-                      {stock.text}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 text-right whitespace-nowrap">
+      {filtered.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-slate-300 py-10 text-center text-sm text-slate-400">
+          Ничего не найдено
+        </p>
+      ) : (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {filtered.map((p) => {
+            const stock = stockLabel(p.stock)
+            return (
+              <div key={p.id} className="flex flex-col rounded-lg border border-slate-200 bg-white p-3">
+                <div className="mb-2 flex justify-center">
+                  <ProductImage imageUrl={p.imageUrl} brand={p.brand} category={p.category} size="lg" />
+                </div>
+                <div className="text-xs text-slate-400">{p.brand}</div>
+                <div className="text-sm font-medium leading-snug text-slate-900">{p.model}</div>
+                <div className="text-xs text-slate-500">{CATEGORY_LABELS[p.category as Category]}</div>
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <span className="font-semibold text-slate-900">${p.priceUSD}</span>
+                  <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${stockToneClass[stock.tone]}`}>
+                    {stock.text}
+                  </span>
+                </div>
+                {manage && (
+                  <div className="no-print mt-2 flex gap-3 border-t border-slate-100 pt-2 text-xs">
                     <button
                       onClick={() => {
                         setEditing(p)
                         setShowForm(true)
                       }}
-                      className="mr-2 text-blue-600 hover:underline"
+                      className="text-blue-600 hover:underline"
                     >
                       Изменить
                     </button>
@@ -138,19 +120,43 @@ export function CatalogView({ items, onSave, onRemove, onReset }: Props) {
                     >
                       Удалить
                     </button>
-                  </td>
-                </tr>
-              )
-            })}
-            {filtered.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-3 py-6 text-center text-slate-400">
-                  Ничего не найдено
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      <div className="no-print mt-6 border-t border-slate-200 pt-3">
+        {manage ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => {
+                setEditing(undefined)
+                setShowForm(true)
+              }}
+              className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+            >
+              + Добавить товар
+            </button>
+            <button
+              onClick={() => {
+                if (confirm('Сбросить каталог к демо-данным? Ваши изменения будут потеряны.')) onReset()
+              }}
+              className="rounded border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100"
+            >
+              Сбросить к демо
+            </button>
+            <button onClick={() => setManage(false)} className="ml-auto text-sm text-slate-400 hover:underline">
+              Скрыть управление
+            </button>
+          </div>
+        ) : (
+          <button onClick={() => setManage(true)} className="text-sm text-slate-400 hover:underline">
+            Управление каталогом (добавить/изменить/удалить)
+          </button>
+        )}
       </div>
 
       {showForm && (

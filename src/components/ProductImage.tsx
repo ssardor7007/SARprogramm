@@ -7,7 +7,7 @@ interface Props {
   imageUrl?: string
   brand: string
   category: Category
-  size?: 'sm' | 'md'
+  size?: 'sm' | 'md' | 'lg'
 }
 
 /** Относительные пути (из public/) резолвятся с учётом base пути сборки — GitHub Pages/поддомен. */
@@ -20,8 +20,8 @@ function resolveSrc(url: string) {
 export function ProductImage({ imageUrl, brand, category, size = 'md' }: Props) {
   const [failed, setFailed] = useState(false)
   const color = brandColor(brand)
-  const dim = size === 'sm' ? 'h-10 w-10' : 'h-16 w-16'
-  const iconDim = size === 'sm' ? 'h-5 w-5' : 'h-8 w-8'
+  const dim = size === 'sm' ? 'h-10 w-10' : size === 'lg' ? 'h-24 w-24' : 'h-16 w-16'
+  const iconDim = size === 'sm' ? 'h-5 w-5' : size === 'lg' ? 'h-10 w-10' : 'h-8 w-8'
 
   if (imageUrl && !failed) {
     return (

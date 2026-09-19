@@ -24,10 +24,20 @@ export function CatalogIcon() {
   )
 }
 
-export function CompetitorsIcon() {
+export function QuoteIcon() {
   return (
     <svg viewBox="0 0 24 24" {...common}>
-      <path d="M12 3 4 6v6c0 4.2 3.2 7.4 8 9 4.8-1.6 8-4.8 8-9V6l-8-3Z" />
+      <path d="M6 3h9l4 4v14H6Z" />
+      <path d="M15 3v4h4" />
+      <path d="M9 12h6M9 15h6M9 18h3" />
+    </svg>
+  )
+}
+
+export function ToolsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" {...common}>
+      <path d="M14.5 6.5a3.5 3.5 0 0 1-4.6 4.6L4 17l3 3 5.9-5.9a3.5 3.5 0 0 1 4.6-4.6l-2.3 2.3-2-2Z" />
     </svg>
   )
 }
