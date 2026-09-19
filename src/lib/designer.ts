@@ -4,6 +4,14 @@ export type WallMaterial = 'open' | 'drywall' | 'brick' | 'concrete'
 export type BuildingType = 'office' | 'retail' | 'warehouse' | 'hotel' | 'apartment'
 export type CameraTier = 'none' | 'budget' | 'standard' | 'premium'
 
+export const BUILDING_TYPE_LABELS: Record<BuildingType, string> = {
+  office: 'Офис',
+  retail: 'Магазин / торговый зал',
+  warehouse: 'Склад',
+  hotel: 'Гостиница',
+  apartment: 'Жилой дом',
+}
+
 export interface DesignerInput {
   buildingType: BuildingType
   /** Площадь всего здания (сумма по всем этажам), м² */

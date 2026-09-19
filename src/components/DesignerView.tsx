@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Product } from '../types'
 import {
+  BUILDING_TYPE_LABELS,
   cameraTierLabel,
   designNetwork,
   wallMaterialLabel,
@@ -13,14 +14,6 @@ import { SHOW_VIDEO_SURVEILLANCE } from '../lib/features'
 
 interface Props {
   catalog: Product[]
-}
-
-const BUILDING_TYPE_LABELS: Record<BuildingType, string> = {
-  office: 'Офис',
-  retail: 'Магазин / торговый зал',
-  warehouse: 'Склад',
-  hotel: 'Гостиница',
-  apartment: 'Жилой дом',
 }
 
 const WALL_OPTIONS: WallMaterial[] = ['open', 'drywall', 'brick', 'concrete']

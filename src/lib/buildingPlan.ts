@@ -1,5 +1,8 @@
 import type { Product } from '../types'
-import { AREA_PER_AP, findProduct, type WallMaterial } from './designer'
+import { AREA_PER_AP, findProduct, type BuildingType, type WallMaterial } from './designer'
+
+export const CANVAS_W_M = 40
+export const CANVAS_H_M = 24
 
 export interface Room {
   id: string
@@ -190,4 +193,84 @@ export function planBuilding(plan: BuildingPlan, catalog: Product[]): BuildingPl
 
 export function wallMaterialColor(m: WallMaterial) {
   return { open: '#e2e8f0', drywall: '#bfdbfe', brick: '#fde68a', concrete: '#cbd5e1' }[m]
+}
+
+export interface GenerateParams {
+  buildingType: BuildingType
+  floors: number
+  areaPerFloorM2: number
+  wallMaterial: WallMaterial
+  /** Номеров/квартир на этаже — используется для гостиниц и жилых домов */
+  roomsPerFloor: number
+  floorHeightM: number
+}
+
+function clampNum(v: number, min: number, max: number) {
+  return Math.min(Math.max(v, min), max)
+}
+
+/**
+ * Автоматически строит чертёж этажей по параметрам объекта — для гостиниц/жилых
+ * домов раскладывает номера в два ряда вдоль коридора, для остальных типов
+ * рисует одно открытое помещение нужной площади. Это стартовый эскиз, который
+ * потом можно поправить руками (подвинуть стены, переименовать комнаты).
+ */
+export function generateFloorPlan(params: GenerateParams): BuildingPlan {
+  const isHotelLike = params.buildingType === 'hotel' || params.buildingType === 'apartment'
+  const floorCount = Math.max(1, Math.round(params.floors))
+  const floors: Floor[] = []
+
+  for (let i = 0; i < floorCount; i++) {
+    const floorId = `floor-${i}`
+    let rooms: Room[]
+    let switchPoint: Point
+
+    if (isHotelLike && params.roomsPerFloor > 0) {
+      const n = Math.round(params.roomsPerFloor)
+      const roomsPerSide = Math.ceil(n / 2)
+      const roomDepth = 6
+      const corridorWidth = 2.4
+      const roomWidth = clampNum(CANVAS_W_M / roomsPerSide - 0.1, 3, 5.5)
+
+      rooms = []
+      for (let r = 0; r < n; r++) {
+        const side = r < roomsPerSide ? 0 : 1
+        const idxInSide = side === 0 ? r : r - roomsPerSide
+        rooms.push({
+          id: `${floorId}-room-${r}`,
+          name: `Номер ${r + 1}`,
+          x: round1(idxInSide * roomWidth),
+          y: side === 0 ? 0 : round1(roomDepth + corridorWidth),
+          w: round1(roomWidth),
+          h: roomDepth,
+          wallMaterial: params.wallMaterial,
+        })
+      }
+      switchPoint = { x: round1((roomsPerSide * roomWidth) / 2), y: round1(roomDepth + corridorWidth / 2) }
+    } else {
+      const area = Math.max(10, params.areaPerFloorM2)
+      const w = clampNum(Math.sqrt(area * 1.4), 4, CANVAS_W_M)
+      const h = clampNum(area / w, 4, CANVAS_H_M)
+      rooms = [
+        {
+          id: `${floorId}-room-0`,
+          name: 'Открытое пространство',
+          x: 0,
+          y: 0,
+          w: round1(w),
+          h: round1(h),
+          wallMaterial: params.wallMaterial,
+        },
+      ]
+      switchPoint = { x: round1(w / 2), y: round1(h / 2) }
+    }
+
+    floors.push({ id: floorId, name: `Этаж ${i + 1}`, heightM: params.floorHeightM, rooms, switchPoint })
+  }
+
+  return { floors, serverFloorId: floors[0].id }
+}
+
+function round1(v: number) {
+  return Math.round(v * 10) / 10
 }

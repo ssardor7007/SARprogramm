@@ -1,7 +1,17 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import type { Product } from '../types'
-import { planBuilding, wallMaterialColor, type BuildingPlan, type Floor, type Room } from '../lib/buildingPlan'
-import { wallMaterialLabel, type WallMaterial } from '../lib/designer'
+import {
+  CANVAS_H_M,
+  CANVAS_W_M,
+  generateFloorPlan,
+  planBuilding,
+  wallMaterialColor,
+  type BuildingPlan,
+  type Floor,
+  type GenerateParams,
+  type Room,
+} from '../lib/buildingPlan'
+import { BUILDING_TYPE_LABELS, wallMaterialLabel, type BuildingType, type WallMaterial } from '../lib/designer'
 import { genId, usePersistedState } from '../lib/storage'
 
 interface Props {
@@ -9,11 +19,10 @@ interface Props {
 }
 
 const PX_PER_M = 24
-const CANVAS_W_M = 40
-const CANVAS_H_M = 24
 const CANVAS_W_PX = CANVAS_W_M * PX_PER_M
 const CANVAS_H_PX = CANVAS_H_M * PX_PER_M
 const MATERIALS: WallMaterial[] = ['open', 'drywall', 'brick', 'concrete']
+const BUILDING_TYPES: BuildingType[] = ['office', 'retail', 'warehouse', 'hotel', 'apartment']
 
 function round1(v: number) {
   return Math.round(v * 10) / 10
@@ -49,9 +58,34 @@ export function BuildingPlanView({ catalog }: Props) {
   const [activeFloorId, setActiveFloorId] = useState(plan.floors[0]?.id)
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null)
   const [drawRect, setDrawRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
+  const [gen, setGen] = useState<GenerateParams>({
+    buildingType: 'hotel',
+    floors: 3,
+    areaPerFloorM2: 300,
+    wallMaterial: 'concrete',
+    roomsPerFloor: 20,
+    floorHeightM: 3.2,
+  })
   const canvasRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<DragState | null>(null)
   const drawStartRef = useRef<{ x: number; y: number } | null>(null)
+
+  function setGenField<K extends keyof GenerateParams>(key: K, value: GenerateParams[K]) {
+    setGen((prev) => ({ ...prev, [key]: value }))
+  }
+
+  const isHotelLike = gen.buildingType === 'hotel' || gen.buildingType === 'apartment'
+
+  function handleGenerate() {
+    const hasRooms = plan.floors.some((f) => f.rooms.length > 0)
+    if (hasRooms && !confirm('Это заменит текущий чертёж (все нарисованные этажи и комнаты). Построить заново по параметрам?')) {
+      return
+    }
+    const newPlan = generateFloorPlan(gen)
+    setPlan(newPlan)
+    setActiveFloorId(newPlan.floors[0].id)
+    setSelectedRoomId(null)
+  }
 
   const activeFloor = plan.floors.find((f) => f.id === activeFloorId) ?? plan.floors[0]
   const result = planBuilding(plan, catalog)
@@ -202,8 +236,85 @@ export function BuildingPlanView({ catalog }: Props) {
         <h1 className="text-xl font-semibold text-slate-900">План здания</h1>
         <p className="text-sm text-slate-500">
           Нарисуйте комнаты мышью прямо на плане (клик и протяжка), задайте материал стен — система сама расставит точки
-          доступа, подберёт оборудование и посчитает, сколько метров кабеля уйдёт на каждый этаж и до серверной.
+          доступа, подберёт оборудование и посчитает, сколько метров кабеля уйдёт на каждый этаж и до серверной. Или
+          укажите параметры объекта ниже — и чертёж будет построен автоматически.
         </p>
+      </div>
+
+      <div className="no-print mb-4 rounded-lg border border-slate-200 bg-white p-3">
+        <h2 className="mb-2 text-sm font-semibold text-slate-700">Построить чертёж по параметрам объекта</h2>
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <label className="block text-xs font-medium text-slate-500">Тип объекта</label>
+            <select
+              className="mt-1 rounded border border-slate-300 px-2 py-1 text-sm"
+              value={gen.buildingType}
+              onChange={(e) => setGenField('buildingType', e.target.value as BuildingType)}
+            >
+              {BUILDING_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {BUILDING_TYPE_LABELS[t]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-500">Этажей</label>
+            <input
+              type="number"
+              min={1}
+              className="mt-1 w-20 rounded border border-slate-300 px-2 py-1 text-sm"
+              value={gen.floors}
+              onChange={(e) => setGenField('floors', Math.max(1, Number(e.target.value)))}
+            />
+          </div>
+          {isHotelLike ? (
+            <div>
+              <label className="block text-xs font-medium text-slate-500">Номеров на этаж</label>
+              <input
+                type="number"
+                min={1}
+                className="mt-1 w-24 rounded border border-slate-300 px-2 py-1 text-sm"
+                value={gen.roomsPerFloor}
+                onChange={(e) => setGenField('roomsPerFloor', Math.max(1, Number(e.target.value)))}
+              />
+            </div>
+          ) : (
+            <div>
+              <label className="block text-xs font-medium text-slate-500">Площадь этажа, м²</label>
+              <input
+                type="number"
+                min={10}
+                className="mt-1 w-28 rounded border border-slate-300 px-2 py-1 text-sm"
+                value={gen.areaPerFloorM2}
+                onChange={(e) => setGenField('areaPerFloorM2', Math.max(10, Number(e.target.value)))}
+              />
+            </div>
+          )}
+          <div>
+            <label className="block text-xs font-medium text-slate-500">Материал стен</label>
+            <select
+              className="mt-1 rounded border border-slate-300 px-2 py-1 text-sm"
+              value={gen.wallMaterial}
+              onChange={(e) => setGenField('wallMaterial', e.target.value as WallMaterial)}
+            >
+              {MATERIALS.map((m) => (
+                <option key={m} value={m}>
+                  {wallMaterialLabel(m)}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button onClick={handleGenerate} className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700">
+            Построить чертёж
+          </button>
+        </div>
+        {isHotelLike && (
+          <p className="mt-2 text-xs text-slate-400">
+            Номера разложатся в два ряда вдоль коридора на каждом этаже — дальше можно подвинуть стены и переименовать
+            вручную.
+          </p>
+        )}
       </div>
 
       <div className="no-print mb-3 flex flex-wrap items-center gap-2">
