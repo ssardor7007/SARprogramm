@@ -48,6 +48,7 @@ export function DesignerView({ catalog, onSentToRack }: Props) {
     cameraBrand: 'Hikvision',
     preferredBrand: 'all',
     apMountType: 'any',
+    maxBudgetUSD: 0,
   })
 
   const result = designNetworkTiers(input, catalog)
@@ -219,6 +220,22 @@ export function DesignerView({ catalog, onSentToRack }: Props) {
             </p>
           </div>
 
+          <div>
+            <label className="block text-sm font-medium text-slate-700">Бюджет клиента, $</label>
+            <p className="mt-0.5 text-xs text-slate-400">
+              Необязательно. Если указать — покажем, какие сегменты укладываются, и подскажем лучший вариант в
+              рамках этой суммы.
+            </p>
+            <input
+              type="number"
+              min={0}
+              placeholder="Без ограничения"
+              className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+              value={input.maxBudgetUSD || ''}
+              onChange={(e) => set('maxBudgetUSD', Math.max(0, Number(e.target.value)))}
+            />
+          </div>
+
           <label className="flex items-center gap-2 text-sm text-slate-700">
             <input
               type="checkbox"
@@ -369,10 +386,15 @@ export function DesignerView({ catalog, onSentToRack }: Props) {
                   </div>
                   <p className="mb-2 text-xs text-slate-400">{t.brands.join(', ') || '—'}</p>
 
-                  <div className="mb-3 text-2xl font-bold text-slate-900">${t.totalUSD.toLocaleString()}</div>
-                  <p className="mb-3 text-xs text-slate-400">
+                  <div className="mb-1 text-2xl font-bold text-slate-900">${t.totalUSD.toLocaleString()}</div>
+                  <p className="mb-2 text-xs text-slate-400">
                     ≈${t.usdPerClient.toFixed(1)} на одного одновременного клиента
                   </p>
+                  {input.maxBudgetUSD > 0 && (
+                    <p className={`mb-2 text-xs font-medium ${t.fitsBudget ? 'text-emerald-600' : 'text-red-600'}`}>
+                      {t.fitsBudget ? '✓ В бюджете' : `Превышает бюджет на $${t.overBudgetUSD.toLocaleString()}`}
+                    </p>
+                  )}
 
                   <ul className="mb-3 flex-1 space-y-2 text-sm">
                     {t.lines.map((line, i) => (

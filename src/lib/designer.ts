@@ -49,6 +49,8 @@ export interface DesignerInput {
   preferredBrand: BrandFilter
   /** Способ установки точки доступа — потолочная или настенная. По умолчанию не фильтруем. */
   apMountType: ApMountType
+  /** Бюджет клиента, $. 0 или не задан — без ограничения. Не меняет сами сегменты, а помечает, какие в него укладываются, и двигает рекомендацию. */
+  maxBudgetUSD: number
 }
 
 export interface DesignerLine {
@@ -231,6 +233,10 @@ export interface TierResult extends DesignerResult {
   brands: string[]
   /** Метрика для сравнения пакетов между собой: цена на одного одновременного клиента */
   usdPerClient: number
+  /** Укладывается ли итоговая сумма в бюджет клиента (input.maxBudgetUSD). true, если бюджет не задан. */
+  fitsBudget: boolean
+  /** На сколько $ сегмент превышает заданный бюджет — 0, если укладывается или бюджет не задан. */
+  overBudgetUSD: number
 }
 
 export interface DesignerTiersResult {
@@ -375,6 +381,7 @@ function designTier(input: DesignerInput, catalog: Product[], tier: Tier): TierR
 
   const totalUSD = lines.reduce((sum, l) => sum + (l.product ? l.product.priceUSD * l.qty : 0), 0)
   const totalApCount = apCount + outdoorAPs
+  const overBudgetUSD = input.maxBudgetUSD > 0 ? Math.max(0, totalUSD - input.maxBudgetUSD) : 0
 
   return {
     tier,
@@ -385,6 +392,8 @@ function designTier(input: DesignerInput, catalog: Product[], tier: Tier): TierR
     totalUSD,
     brands: Array.from(brands),
     usdPerClient: concurrentDevices > 0 ? totalUSD / concurrentDevices : totalUSD,
+    fitsBudget: overBudgetUSD === 0,
+    overBudgetUSD,
   }
 }
 
@@ -413,6 +422,27 @@ export function designNetworkTiers(input: DesignerInput, catalog: Product[]): De
     recommendationReason = `Бюджетному сегменту нужно ${budgetTier.apCount} точек доступа против ${midTier.apCount} в оптимальном — при похожей цене оптимальный сегмент (${midTier.brands.join(', ')}) выгоднее и проще в обслуживании.`
   } else {
     recommendationReason = `При ~${concurrentDevices} одновременных клиентах оптимальный сегмент (${midTier.brands.join(', ')}) — лучшее сочетание цены и запаса по нагрузке.`
+  }
+
+  // Бюджет клиента может перебить рекомендацию по нагрузке: берём самый
+  // «богатый» сегмент, который в него укладывается, а не просто следующий
+  // по нагрузке — премиум ценнее оптимального, если оба укладываются.
+  if (input.maxBudgetUSD > 0) {
+    const richnessOrder: Tier[] = ['premium', 'mid', 'budget']
+    const bestFitting = richnessOrder.find((t) => tiers.find((r) => r.tier === t)!.fitsBudget)
+    const budgetText = `$${input.maxBudgetUSD.toLocaleString()}`
+
+    if (!bestFitting) {
+      recommendedTier = 'budget'
+      recommendationReason = `Даже бюджетный сегмент ($${budgetTier.totalUSD.toLocaleString()}) выходит за рамки бюджета ${budgetText} — это минимальная цена рабочего решения под эти параметры.`
+    } else if (bestFitting !== recommendedTier) {
+      const chosen = tiers.find((r) => r.tier === bestFitting)!
+      recommendedTier = bestFitting
+      recommendationReason = `С учётом бюджета ${budgetText} — сегмент «${chosen.tierLabel}» (${chosen.brands.join(', ')}, $${chosen.totalUSD.toLocaleString()}) лучший вариант, который в него укладывается.`
+    } else {
+      const chosen = tiers.find((r) => r.tier === recommendedTier)!
+      recommendationReason += ` Укладывается в бюджет ${budgetText} (стоимость $${chosen.totalUSD.toLocaleString()}).`
+    }
   }
 
   return { tiers, recommendedTier, recommendationReason, concurrentDevices }
