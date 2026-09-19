@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { CATEGORY_LABELS } from '../types'
 import type { Category, Product } from '../types'
 import { brandColor } from '../lib/brandTheme'
+import type { RackLine } from '../lib/rackCart'
 import { genId, usePersistedState } from '../lib/storage'
 import { ProductImage } from './ProductImage'
 
@@ -9,18 +10,16 @@ interface Props {
   catalog: Product[]
 }
 
-/** Позиция в стойке — количество одинаковых юнитов вместо отдельной строки на каждый физический экземпляр. */
-interface RackLine {
-  id: string
-  productId: string
-  qty: number
-  /** Высота в юнитах ОДНОГО экземпляра этой модели */
-  unitsPerItem: number
-}
-
 const UNIT_PX = 22
 const RACK_HEIGHTS = [12, 24, 42] as const
 const CATEGORY_ORDER: Category[] = ['router', 'switch', 'ap', 'camera', 'nvr', 'other']
+
+/** Точки доступа и камеры монтируются на стене/потолке объекта и подключаются к порту свича —
+ * физически в серверный шкаф не устанавливаются и не занимают юниты. */
+const WALL_MOUNTED_CATEGORIES = new Set<Category>(['ap', 'camera'])
+function isRackMountable(category: Category) {
+  return !WALL_MOUNTED_CATEGORIES.has(category)
+}
 
 export function RackDesignerView({ catalog }: Props) {
   const [rackHeight, setRackHeight] = usePersistedState<(typeof RACK_HEIGHTS)[number]>('rack-height', 42)
@@ -78,7 +77,20 @@ export function RackDesignerView({ catalog }: Props) {
     })
   }
 
-  const usedU = lines.reduce((sum, l) => sum + l.qty * l.unitsPerItem, 0)
+  function categoryOf(line: RackLine): Category | undefined {
+    return catalog.find((c) => c.id === line.productId)?.category
+  }
+
+  const rackLines = lines.filter((l) => {
+    const cat = categoryOf(l)
+    return cat !== undefined && isRackMountable(cat)
+  })
+  const wallLines = lines.filter((l) => {
+    const cat = categoryOf(l)
+    return cat !== undefined && !isRackMountable(cat)
+  })
+
+  const usedU = rackLines.reduce((sum, l) => sum + l.qty * l.unitsPerItem, 0)
   const totalItems = lines.reduce((sum, l) => sum + l.qty, 0)
   const totalPrice = lines.reduce((sum, l) => {
     const p = catalog.find((c) => c.id === l.productId)
@@ -87,9 +99,9 @@ export function RackDesignerView({ catalog }: Props) {
   const overCapacity = usedU > rackHeight
   const freeU = Math.max(0, rackHeight - usedU)
 
-  const groupedLines = useMemo(() => {
+  function groupByCategory(list: RackLine[]) {
     const groups = new Map<Category, RackLine[]>()
-    for (const line of lines) {
+    for (const line of list) {
       const p = catalog.find((c) => c.id === line.productId)
       if (!p) continue
       const arr = groups.get(p.category) ?? []
@@ -97,7 +109,10 @@ export function RackDesignerView({ catalog }: Props) {
       groups.set(p.category, arr)
     }
     return CATEGORY_ORDER.filter((c) => groups.has(c)).map((c) => ({ category: c, items: groups.get(c)! }))
-  }, [lines, catalog])
+  }
+
+  const groupedRackLines = useMemo(() => groupByCategory(rackLines), [rackLines, catalog])
+  const groupedWallLines = useMemo(() => groupByCategory(wallLines), [wallLines, catalog])
 
   return (
     <div>
@@ -106,7 +121,8 @@ export function RackDesignerView({ catalog }: Props) {
           <h1 className="text-xl font-semibold text-slate-900">Дизайнер стойки</h1>
           <p className="text-sm text-slate-500">
             Соберите проект как в UniFi Design Center — но из оборудования любого бренда каталога. Добавляйте
-            позиции карточками, меняйте количество степпером, перетаскивайте группы для смены порядка.
+            позиции карточками, меняйте количество степпером. В шкаф идут только роутеры, коммутаторы, NVR и
+            аксессуары — точки доступа и камеры монтируются отдельно на объекте и не занимают юниты.
           </p>
         </div>
         {lines.length > 0 && (
@@ -190,11 +206,14 @@ export function RackDesignerView({ catalog }: Props) {
             )}
           </div>
 
-          {groupedLines.length > 0 && (
+          {groupedRackLines.length > 0 && (
             <div className="rounded-lg border border-slate-200 bg-white p-4">
-              <h2 className="mb-2 text-sm font-semibold text-slate-700">Список в стойке, по категориям</h2>
+              <h2 className="mb-2 text-sm font-semibold text-slate-700">Список в шкафу, по категориям</h2>
+              <p className="mb-3 text-xs text-slate-400">
+                Роутеры, коммутаторы, NVR и аксессуары, которые физически монтируются в серверный шкаф.
+              </p>
               <div className="space-y-4">
-                {groupedLines.map(({ category, items }) => (
+                {groupedRackLines.map(({ category, items }) => (
                   <div key={category}>
                     <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
                       {CATEGORY_LABELS[category]}
@@ -265,6 +284,59 @@ export function RackDesignerView({ catalog }: Props) {
               </div>
             </div>
           )}
+
+          {groupedWallLines.length > 0 && (
+            <div className="rounded-lg border border-slate-200 bg-white p-4">
+              <h2 className="mb-2 text-sm font-semibold text-slate-700">Устанавливается на объекте — не в шкафу</h2>
+              <p className="mb-3 text-xs text-slate-400">
+                Точки доступа и камеры монтируются на стене/потолке и подключаются кабелем к порту коммутатора —
+                в юниты стойки не входят, но учтены в общей смете справа.
+              </p>
+              <div className="space-y-4">
+                {groupedWallLines.map(({ category, items }) => (
+                  <div key={category}>
+                    <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                      {CATEGORY_LABELS[category]}
+                    </div>
+                    <div className="space-y-1">
+                      {items.map((line) => {
+                        const p = catalog.find((c) => c.id === line.productId)
+                        if (!p) return null
+                        return (
+                          <div
+                            key={line.id}
+                            className="flex items-center gap-2 rounded border border-slate-200 bg-slate-50 px-2 py-1.5 text-sm"
+                          >
+                            <span className="flex-1 truncate">
+                              {p.brand} {p.model}
+                            </span>
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => removeOne(p.id)}
+                                className="h-5 w-5 rounded border border-slate-300 text-xs leading-none hover:bg-white"
+                              >
+                                −
+                              </button>
+                              <span className="w-6 text-center text-xs font-medium text-slate-700">{line.qty}</span>
+                              <button
+                                onClick={() => addOne(p)}
+                                className="h-5 w-5 rounded border border-slate-300 text-xs leading-none hover:bg-white"
+                              >
+                                +
+                              </button>
+                            </div>
+                            <button onClick={() => removeLine(line.id)} className="text-red-600 hover:underline">
+                              Убрать
+                            </button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Rack elevation */}
@@ -291,7 +363,7 @@ export function RackDesignerView({ catalog }: Props) {
 
           <div className="mx-auto w-full max-w-[300px] rounded-md border-2 border-slate-800 bg-slate-900 p-1.5 print:break-inside-avoid">
             <div className="flex flex-col overflow-hidden rounded-sm bg-slate-950">
-              {lines.map((line) => {
+              {rackLines.map((line) => {
                 const p = catalog.find((c) => c.id === line.productId)
                 if (!p) return null
                 const color = brandColor(p.brand)
@@ -336,9 +408,15 @@ export function RackDesignerView({ catalog }: Props) {
               </span>
             </div>
             <div className="flex items-center justify-between text-sm text-slate-600">
-              <span>Позиций в стойке</span>
+              <span>Позиций в проекте</span>
               <span className="font-medium text-slate-900">{totalItems}</span>
             </div>
+            {wallLines.length > 0 && (
+              <div className="flex items-center justify-between text-xs text-slate-400">
+                <span>из них вне шкафа (AP/камеры)</span>
+                <span>{wallLines.reduce((sum, l) => sum + l.qty, 0)}</span>
+              </div>
+            )}
             <div className="flex items-center justify-between border-t border-slate-100 pt-2 text-base">
               <span className="font-semibold text-slate-900">Итого оборудование</span>
               <span className="text-xl font-bold text-slate-900">${totalPrice.toLocaleString()}</span>

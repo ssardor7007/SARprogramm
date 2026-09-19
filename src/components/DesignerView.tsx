@@ -12,9 +12,12 @@ import {
   type WallMaterial,
 } from '../lib/designer'
 import { SHOW_VIDEO_SURVEILLANCE } from '../lib/features'
+import { addProductsToRack } from '../lib/rackCart'
 
 interface Props {
   catalog: Product[]
+  /** Вызывается после отправки варианта в «Дизайнер стойки» — используется, чтобы переключить вкладку. */
+  onSentToRack?: () => void
 }
 
 const WALL_OPTIONS: WallMaterial[] = ['open', 'drywall', 'brick', 'concrete']
@@ -26,7 +29,7 @@ const TIER_ACCENT: Record<Tier, { border: string; badge: string; ring: string }>
   premium: { border: 'border-violet-200', badge: 'bg-violet-100 text-violet-700', ring: '' },
 }
 
-export function DesignerView({ catalog }: Props) {
+export function DesignerView({ catalog, onSentToRack }: Props) {
   const [input, setInput] = useState<DesignerInput>({
     buildingType: 'office',
     totalAreaM2: 500,
@@ -45,6 +48,13 @@ export function DesignerView({ catalog }: Props) {
 
   function set<K extends keyof DesignerInput>(key: K, value: DesignerInput[K]) {
     setInput((prev) => ({ ...prev, [key]: value }))
+  }
+
+  function sendTierToRack(tier: Tier) {
+    const t = result.tiers.find((r) => r.tier === tier)
+    if (!t) return
+    addProductsToRack(t.lines.map((line) => ({ product: line.product, qty: line.qty })))
+    onSentToRack?.()
   }
 
   return (
@@ -287,6 +297,13 @@ export function DesignerView({ catalog }: Props) {
                       ))}
                     </div>
                   )}
+
+                  <button
+                    onClick={() => sendTierToRack(tier)}
+                    className="no-print mt-1 rounded border border-slate-300 px-2 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                  >
+                    Добавить в «Дизайнер стойки» →
+                  </button>
                 </div>
               )
             })}
