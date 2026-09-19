@@ -9,6 +9,7 @@ import {
   type DesignerInput,
   type WallMaterial,
 } from '../lib/designer'
+import { SHOW_VIDEO_SURVEILLANCE } from '../lib/features'
 
 interface Props {
   ownCatalog: Product[]
@@ -33,7 +34,7 @@ export function DesignerView({ ownCatalog }: Props) {
     wallMaterial: 'drywall',
     concurrentDevices: 40,
     outdoorCoverage: false,
-    cameraTier: 'standard',
+    cameraTier: SHOW_VIDEO_SURVEILLANCE ? 'standard' : 'none',
     cameraCount: 8,
     cameraBrand: 'Hikvision',
   })
@@ -50,8 +51,8 @@ export function DesignerView({ ownCatalog }: Props) {
         <h1 className="text-xl font-semibold text-slate-900">Подбор оборудования по объекту</h1>
         <p className="text-sm text-slate-500">
           Упрощённый аналог TP-Link Omada Designer: введите параметры здания — получите ориентировочный набор
-          точек доступа, коммутаторов, роутера и камер. Это оценка «на глаз», не замена радиообследования для
-          сложных объектов.
+          точек доступа, коммутаторов и роутера. Это оценка «на глаз», не замена радиообследования для сложных
+          объектов.
         </p>
       </div>
 
@@ -134,47 +135,51 @@ export function DesignerView({ ownCatalog }: Props) {
             Нужна Wi-Fi зона на улице (двор, парковка, терраса)
           </label>
 
-          <hr className="border-slate-200" />
+          {SHOW_VIDEO_SURVEILLANCE && (
+            <>
+              <hr className="border-slate-200" />
 
-          <div>
-            <label className="block text-sm font-medium text-slate-700">Видеонаблюдение</label>
-            <select
-              className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
-              value={input.cameraTier}
-              onChange={(e) => set('cameraTier', e.target.value as CameraTier)}
-            >
-              {CAMERA_TIERS.map((t) => (
-                <option key={t} value={t}>
-                  {cameraTierLabel(t)}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {input.cameraTier !== 'none' && (
-            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-medium text-slate-700">Кол-во камер</label>
-                <input
-                  type="number"
-                  min={1}
-                  className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
-                  value={input.cameraCount}
-                  onChange={(e) => set('cameraCount', Number(e.target.value))}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700">Бренд камер</label>
+                <label className="block text-sm font-medium text-slate-700">Видеонаблюдение</label>
                 <select
                   className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
-                  value={input.cameraBrand}
-                  onChange={(e) => set('cameraBrand', e.target.value as 'Vitek' | 'Hikvision')}
+                  value={input.cameraTier}
+                  onChange={(e) => set('cameraTier', e.target.value as CameraTier)}
                 >
-                  <option value="Vitek">Vitek</option>
-                  <option value="Hikvision">Hikvision</option>
+                  {CAMERA_TIERS.map((t) => (
+                    <option key={t} value={t}>
+                      {cameraTierLabel(t)}
+                    </option>
+                  ))}
                 </select>
               </div>
-            </div>
+
+              {input.cameraTier !== 'none' && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700">Кол-во камер</label>
+                    <input
+                      type="number"
+                      min={1}
+                      className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                      value={input.cameraCount}
+                      onChange={(e) => set('cameraCount', Number(e.target.value))}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700">Бренд камер</label>
+                    <select
+                      className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                      value={input.cameraBrand}
+                      onChange={(e) => set('cameraBrand', e.target.value as 'Vitek' | 'Hikvision')}
+                    >
+                      <option value="Vitek">Vitek</option>
+                      <option value="Hikvision">Hikvision</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
 

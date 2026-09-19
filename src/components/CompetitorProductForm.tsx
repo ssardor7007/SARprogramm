@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { CATEGORY_LABELS, COMPETITOR_BRANDS, PRICE_CATEGORY_LABELS } from '../types'
+import { CATEGORY_LABELS, PRICE_CATEGORY_LABELS } from '../types'
 import type { Category, CompetitorBrand, CompetitorProduct, PriceCategory, Product } from '../types'
+import { visibleCategories, visibleCompetitorBrands } from '../lib/features'
 import { genId } from '../lib/storage'
 import { Modal } from './Modal'
 import { SpecsEditor } from './SpecsEditor'
@@ -45,7 +46,7 @@ export function CompetitorProductForm({ initial, ownCatalog, onSave, onClose }: 
               value={product.brand}
               onChange={(e) => setProduct({ ...product, brand: e.target.value as CompetitorBrand })}
             >
-              {COMPETITOR_BRANDS.map((b) => (
+              {visibleCompetitorBrands().map((b) => (
                 <option key={b} value={b}>
                   {b}
                 </option>
@@ -61,9 +62,9 @@ export function CompetitorProductForm({ initial, ownCatalog, onSave, onClose }: 
                 setProduct({ ...product, category: e.target.value as Category, recommendedOwnId: undefined })
               }
             >
-              {Object.entries(CATEGORY_LABELS).map(([k, v]) => (
-                <option key={k} value={k}>
-                  {v}
+              {visibleCategories().map((c) => (
+                <option key={c} value={c}>
+                  {CATEGORY_LABELS[c]}
                 </option>
               ))}
             </select>

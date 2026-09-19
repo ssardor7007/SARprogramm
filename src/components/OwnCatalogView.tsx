@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { CATEGORY_LABELS, PRICE_CATEGORY_LABELS } from '../types'
 import type { Category, Product } from '../types'
+import { visibleCategories, visibleOwnBrands } from '../lib/features'
 import { stockLabel } from '../lib/matching'
 import { OwnProductForm } from './OwnProductForm'
 import { ProductImage } from './ProductImage'
@@ -35,7 +36,9 @@ export function OwnCatalogView({ items, onSave, onRemove, onReset }: Props) {
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-slate-900">Мой каталог</h1>
-          <p className="text-sm text-slate-500">TP-Link, Vitek, Hikvision — то, что вы продаёте и держите на складе.</p>
+          <p className="text-sm text-slate-500">
+            {visibleOwnBrands().join(', ')} — то, что вы продаёте и держите на складе.
+          </p>
         </div>
         <div className="flex gap-2">
           <button
@@ -77,9 +80,9 @@ export function OwnCatalogView({ items, onSave, onRemove, onReset }: Props) {
           onChange={(e) => setCategoryFilter(e.target.value)}
         >
           <option value="all">Все категории</option>
-          {Object.entries(CATEGORY_LABELS).map(([k, v]) => (
-            <option key={k} value={k}>
-              {v}
+          {visibleCategories().map((c) => (
+            <option key={c} value={c}>
+              {CATEGORY_LABELS[c]}
             </option>
           ))}
         </select>

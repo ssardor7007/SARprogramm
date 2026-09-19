@@ -7,8 +7,8 @@ import { OwnCatalogView } from './components/OwnCatalogView'
 import { COMPETITOR_PRODUCTS } from './data/competitorProducts'
 import { OWN_PRODUCTS } from './data/ownProducts'
 import { brandColor } from './lib/brandTheme'
+import { filterCompetitorProducts, filterOwnProducts, visibleOwnBrands } from './lib/features'
 import { usePersistedList } from './lib/storage'
-import { OWN_BRANDS } from './types'
 
 type Tab = 'compare' | 'catalog' | 'competitors' | 'designer'
 
@@ -22,8 +22,8 @@ const TABS: { id: Tab; label: string; icon: ComponentType }[] = [
 function App() {
   const [tab, setTab] = useState<Tab>('compare')
 
-  const own = usePersistedList('own-products', OWN_PRODUCTS)
-  const competitors = usePersistedList('competitor-products', COMPETITOR_PRODUCTS)
+  const own = usePersistedList('own-products', filterOwnProducts(OWN_PRODUCTS))
+  const competitors = usePersistedList('competitor-products', filterCompetitorProducts(COMPETITOR_PRODUCTS))
 
   return (
     <div className="min-h-screen">
@@ -39,12 +39,12 @@ function App() {
               </div>
               <div>
                 <h1 className="font-display text-lg font-extrabold text-[var(--text)]">SAR</h1>
-                <p className="text-xs text-[var(--text-muted)]">Сетевое оборудование и видеонаблюдение</p>
+                <p className="text-xs text-[var(--text-muted)]">Сетевое оборудование</p>
               </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              {OWN_BRANDS.map((b) => (
+              {visibleOwnBrands().map((b) => (
                 <span
                   key={b}
                   className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium"

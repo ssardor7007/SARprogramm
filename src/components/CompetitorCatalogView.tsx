@@ -27,7 +27,7 @@ export function CompetitorCatalogView({ items, ownCatalog, onSave, onRemove, onR
         <div>
           <h1 className="text-xl font-semibold text-slate-900">Оборудование конкурентов</h1>
           <p className="text-sm text-slate-500">
-            Ruijie, Tenda, Ubiquiti, MikroTik, Dahua и другое — то, что приносят клиенты в своих списках.
+            Ruijie, Tenda, Ubiquiti, MikroTik и другое — то, что приносят клиенты в своих списках.
           </p>
         </div>
         <div className="flex gap-2">

@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { CATEGORY_LABELS, OWN_BRANDS, PRICE_CATEGORY_LABELS } from '../types'
+import { CATEGORY_LABELS, PRICE_CATEGORY_LABELS } from '../types'
 import type { Category, OwnBrand, PriceCategory, Product } from '../types'
+import { visibleCategories, visibleOwnBrands } from '../lib/features'
 import { genId } from '../lib/storage'
 import { Modal } from './Modal'
 import { SpecsEditor } from './SpecsEditor'
@@ -46,7 +47,7 @@ export function OwnProductForm({ initial, onSave, onClose }: Props) {
               value={product.brand}
               onChange={(e) => setProduct({ ...product, brand: e.target.value as OwnBrand })}
             >
-              {OWN_BRANDS.map((b) => (
+              {visibleOwnBrands().map((b) => (
                 <option key={b} value={b}>
                   {b}
                 </option>
@@ -60,9 +61,9 @@ export function OwnProductForm({ initial, onSave, onClose }: Props) {
               value={product.category}
               onChange={(e) => setProduct({ ...product, category: e.target.value as Category })}
             >
-              {Object.entries(CATEGORY_LABELS).map(([k, v]) => (
-                <option key={k} value={k}>
-                  {v}
+              {visibleCategories().map((c) => (
+                <option key={c} value={c}>
+                  {CATEGORY_LABELS[c]}
                 </option>
               ))}
             </select>
