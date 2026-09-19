@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { BRANDS, type Product } from '../types'
 import {
+  AP_MOUNT_LABELS,
   BUILDING_TYPE_LABELS,
   cameraTierLabel,
   designNetworkTiers,
   wallMaterialLabel,
+  type ApMountType,
   type BrandFilter,
   type BuildingType,
   type CameraTier,
@@ -23,6 +25,7 @@ interface Props {
 
 const WALL_OPTIONS: WallMaterial[] = ['open', 'drywall', 'brick', 'concrete']
 const BRAND_OPTIONS: BrandFilter[] = ['all', ...BRANDS]
+const AP_MOUNT_OPTIONS: ApMountType[] = ['any', 'ceiling', 'wall']
 const CAMERA_TIERS: CameraTier[] = ['none', 'budget', 'standard', 'premium']
 const TIER_ORDER: Tier[] = ['budget', 'mid', 'premium']
 const TIER_ACCENT: Record<Tier, { border: string; badge: string; ring: string }> = {
@@ -45,6 +48,7 @@ export function DesignerView({ catalog, onSentToRack }: Props) {
     cameraCount: 8,
     cameraBrand: 'Hikvision',
     preferredBrand: 'all',
+    apMountType: 'any',
   })
 
   const result = designNetworkTiers(input, catalog)
@@ -187,6 +191,32 @@ export function DesignerView({ catalog, onSentToRack }: Props) {
             />
             Нужна Wi-Fi зона на улице (двор, парковка, терраса)
           </label>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700">Монтаж точки доступа</label>
+            <p className="mt-0.5 text-xs text-slate-400">
+              Точки доступа бывают потолочные и настенные — по умолчанию подбираем любую подходящую по сегменту.
+            </p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {AP_MOUNT_OPTIONS.map((m) => {
+                const active = input.apMountType === m
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => set('apMountType', m)}
+                    className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                      active
+                        ? 'border-blue-500 bg-blue-500 text-white'
+                        : 'border-slate-300 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    {AP_MOUNT_LABELS[m]}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
 
           <div>
             <label className="block text-sm font-medium text-slate-700">Бренд оборудования</label>

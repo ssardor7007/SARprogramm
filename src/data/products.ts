@@ -7,7 +7,7 @@ import type { Product } from '../types'
  * сохранённой и переинициализирует каталог свежим списком при несовпадении.
  * Увеличивайте на 1 при каждой content-fix правке PRODUCTS.
  */
-export const CATALOG_VERSION = 2
+export const CATALOG_VERSION = 3
 
 /**
  * Каталог площадки. TP-Link/Wi-Tek/Hikvision/Ubiquiti/MikroTik/Оптика — из
@@ -1510,7 +1510,7 @@ export const PRODUCTS: Product[] = [
   {
     id: 'tpl-sm311lm-8-pack',
     brand: 'TP-Link',
-    category: 'ap',
+    category: 'other',
     model: 'SM311LM(8-pack)',
     specs: {
       'Характеристики': 'TP-Link SFP 1000Base-LX модуль (8 шт в комплекте)',
@@ -1526,7 +1526,7 @@ export const PRODUCTS: Product[] = [
   {
     id: 'tpl-sm321a-2',
     brand: 'TP-Link',
-    category: 'ap',
+    category: 'other',
     model: 'SM321A-2',
     specs: {
       'Характеристики': 'TP-Link SFP 1.25G WDM модуль (Tx 1310, Rx 1550 nm)',
@@ -1542,7 +1542,7 @@ export const PRODUCTS: Product[] = [
   {
     id: 'tpl-sm321b',
     brand: 'TP-Link',
-    category: 'ap',
+    category: 'other',
     model: 'SM321B',
     specs: {
       'Характеристики': 'TP-Link SFP 1.25G WDM модуль (Tx 1550, Rx 1310 nm)',
@@ -1558,7 +1558,7 @@ export const PRODUCTS: Product[] = [
   {
     id: 'tpl-sm321b-2',
     brand: 'TP-Link',
-    category: 'ap',
+    category: 'other',
     model: 'SM321B-2',
     specs: {
       'Характеристики': 'TP-Link SFP 1.25G WDM модуль (Tx 1550, Rx 1310 nm) v2',
@@ -1574,7 +1574,7 @@ export const PRODUCTS: Product[] = [
   {
     id: 'tpl-sm5220-1m',
     brand: 'TP-Link',
-    category: 'ap',
+    category: 'other',
     model: 'SM5220-1M',
     specs: {
       'Характеристики': 'TP-Link 10G DAC кабель прямого подключения 1м',
@@ -1590,7 +1590,7 @@ export const PRODUCTS: Product[] = [
   {
     id: 'tpl-sm5220-3m',
     brand: 'TP-Link',
-    category: 'ap',
+    category: 'other',
     model: 'SM5220-3M',
     specs: {
       'Характеристики': 'TP-Link 10G DAC кабель прямого подключения 3м',

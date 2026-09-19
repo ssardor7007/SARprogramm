@@ -4,6 +4,14 @@ export type WallMaterial = 'open' | 'drywall' | 'brick' | 'concrete'
 export type Tier = PriceCategory
 /** 'all' — подбирать лучший вариант по цене среди всех брендов (как раньше); конкретный бренд — держать все три сегмента на его оборудовании, где это возможно. */
 export type BrandFilter = Brand | 'all'
+/** 'any' — не фильтровать по способу установки; иначе исключать точки доступа другого явно указанного монтажа. */
+export type ApMountType = 'any' | 'ceiling' | 'wall'
+
+export const AP_MOUNT_LABELS: Record<ApMountType, string> = {
+  any: 'Любой (авто)',
+  ceiling: 'Потолочная',
+  wall: 'Настенная',
+}
 
 export const TIER_LABELS: Record<Tier, string> = {
   budget: 'Бюджетный',
@@ -39,6 +47,8 @@ export interface DesignerInput {
   cameraBrand: 'Hikvision' | 'Dahua'
   /** Если выбран конкретный бренд — все три сегмента подбираются на его оборудовании (там, где оно есть в каталоге). */
   preferredBrand: BrandFilter
+  /** Способ установки точки доступа — потолочная или настенная. По умолчанию не фильтруем. */
+  apMountType: ApMountType
 }
 
 export interface DesignerLine {
@@ -100,10 +110,38 @@ function isPoeSwitch(p: Product): boolean {
   return /PoE/i.test(p.specs['Характеристики'] ?? '')
 }
 
-function preferPoeSwitches(pool: Product[], category: Product['category']): Product[] {
-  if (category !== 'switch') return pool
-  const poeOnly = pool.filter(isPoeSwitch)
-  return poeOnly.length > 0 ? poeOnly : pool
+/** Способ установки, который явно следует из модели/описания точки доступа — если он вообще указан. */
+function classifyApMount(p: Product): 'ceiling' | 'wall' | 'outdoor' | 'desktop' | 'unspecified' {
+  const text = `${p.model} ${p.specs['Характеристики'] ?? ''}`
+  if (/wall|настенн/i.test(text)) return 'wall'
+  if (/ceiling|celling|потолочн/i.test(text)) return 'ceiling'
+  if (/outdoor|наружн|уличн/i.test(text)) return 'outdoor'
+  if (/desktop|настольн/i.test(text)) return 'desktop'
+  return 'unspecified'
+}
+
+/**
+ * Точку доступа без явно указанного способа установки в каталоге не отсекаем
+ * (нет данных — не спорим), а вот с явно указанным потолочным/настенным/уличным/
+ * настольным монтажом, не совпадающим с выбором клиента, — исключаем.
+ */
+function matchesApMount(p: Product, mountType: ApMountType): boolean {
+  if (mountType === 'any') return true
+  const kind = classifyApMount(p)
+  return kind === mountType || kind === 'unspecified'
+}
+
+/** Сужает пул кандидатов под жёсткие требования роли: PoE у коммутатора, способ установки у точки доступа. */
+function narrowPool(pool: Product[], category: Product['category'], apMountType: ApMountType): Product[] {
+  if (category === 'switch') {
+    const poeOnly = pool.filter(isPoeSwitch)
+    if (poeOnly.length > 0) pool = poeOnly
+  }
+  if (category === 'ap' && apMountType !== 'any') {
+    const matched = pool.filter((p) => matchesApMount(p, apMountType))
+    if (matched.length > 0) pool = matched
+  }
+  return pool
 }
 
 /**
@@ -113,10 +151,16 @@ function preferPoeSwitches(pool: Product[], category: Product['category']): Prod
  * рынка. В премиум-сегменте при наличии предпочитаем Ubiquiti — это
  * узнаваемый премиальный бренд у клиентов.
  */
-export function pickTierProduct(catalog: Product[], category: Product['category'], tier: Tier): Product | undefined {
-  const pool = preferPoeSwitches(
+export function pickTierProduct(
+  catalog: Product[],
+  category: Product['category'],
+  tier: Tier,
+  apMountType: ApMountType = 'any',
+): Product | undefined {
+  const pool = narrowPool(
     catalog.filter((p) => p.category === category && p.priceCategory === tier),
     category,
+    apMountType,
   )
   if (pool.length === 0) return undefined
   if (tier === 'premium') {
@@ -138,17 +182,24 @@ interface BrandPick {
  * вообще нет товаров этой категории — откатывается на обычный кросс-брендовый подбор
  * и явно предупреждает, что бренд пришлось заменить.
  */
-function pickForTierAndBrand(catalog: Product[], category: Product['category'], tier: Tier, preferredBrand: BrandFilter): BrandPick {
+function pickForTierAndBrand(
+  catalog: Product[],
+  category: Product['category'],
+  tier: Tier,
+  preferredBrand: BrandFilter,
+  apMountType: ApMountType = 'any',
+): BrandPick {
   if (preferredBrand === 'all') {
-    return { product: pickTierProduct(catalog, category, tier) }
+    return { product: pickTierProduct(catalog, category, tier, apMountType) }
   }
-  const brandPool = preferPoeSwitches(
+  const brandPool = narrowPool(
     catalog.filter((p) => p.category === category && p.brand === preferredBrand),
     category,
+    apMountType,
   )
   if (brandPool.length === 0) {
     return {
-      product: pickTierProduct(catalog, category, tier),
+      product: pickTierProduct(catalog, category, tier, apMountType),
       note: `У бренда ${preferredBrand} нет позиции «${CATEGORY_LABELS[category]}» в каталоге — подобран аналог другого бренда.`,
     }
   }
@@ -200,10 +251,15 @@ function designTier(input: DesignerInput, catalog: Product[], tier: Tier): TierR
 
   const outdoorAPs = input.outdoorCoverage ? Math.max(2, Math.ceil(input.floors / 2)) : 0
 
-  const { product: apProduct, note: apNote } = pickForTierAndBrand(catalog, 'ap', tier, input.preferredBrand)
+  const { product: apProduct, note: apNote } = pickForTierAndBrand(catalog, 'ap', tier, input.preferredBrand, input.apMountType)
   const lines: DesignerLine[] = []
   const brands = new Set<string>()
   if (apNote) warnings.push(apNote)
+  if (apProduct && input.apMountType !== 'any' && !matchesApMount(apProduct, input.apMountType)) {
+    warnings.push(
+      `Нет подходящей точки доступа монтажа «${AP_MOUNT_LABELS[input.apMountType]}» в этом сегменте — предложена ближайшая по цене/бренду модель.`,
+    )
+  }
 
   if (apProduct) {
     brands.add(apProduct.brand)
