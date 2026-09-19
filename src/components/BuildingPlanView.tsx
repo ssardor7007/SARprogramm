@@ -378,9 +378,26 @@ export function BuildingPlanView({ catalog }: Props) {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_340px]">
         <div>
-          <p className="no-print mb-2 text-xs text-slate-400">
-            Метка <b>🖧</b> — коммутатор/серверная этого этажа, её можно перетащить. Синие точки — автоматически расставленные
-            точки доступа Wi-Fi.
+          <p className="no-print mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400">
+            <span>
+              Метка <b>🖧</b> — коммутатор/серверная этого этажа, перетащите её. Синие точки — точки доступа Wi-Fi, они
+              расставлены так, чтобы одна точка накрывала сразу несколько соседних комнат, а не по одной на комнату.
+            </span>
+            <span className="flex items-center gap-1.5 whitespace-nowrap">
+              Покрытие сигнала:
+              <span className="inline-flex items-center gap-1">
+                <span className="h-2.5 w-2.5 rounded-full bg-green-500" />
+                сильный
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <span className="h-2.5 w-2.5 rounded-full bg-yellow-500" />
+                средний
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <span className="h-2.5 w-2.5 rounded-full bg-red-500" />
+                слабый
+              </span>
+            </span>
           </p>
           <div className="overflow-auto rounded-lg border-2 border-slate-300 bg-white">
             <div
@@ -434,6 +451,26 @@ export function BuildingPlanView({ catalog }: Props) {
               )}
 
               <svg width={CANVAS_W_PX} height={CANVAS_H_PX} className="pointer-events-none absolute inset-0" style={{ zIndex: 2 }}>
+                <defs>
+                  {activeFloorResult?.aps.map((ap) => (
+                    <radialGradient key={ap.id} id={`heat-${ap.id}`} cx="50%" cy="50%" r="50%">
+                      <stop offset="0%" stopColor="#22c55e" stopOpacity={0.55} />
+                      <stop offset="45%" stopColor="#22c55e" stopOpacity={0.35} />
+                      <stop offset="60%" stopColor="#eab308" stopOpacity={0.32} />
+                      <stop offset="82%" stopColor="#ef4444" stopOpacity={0.22} />
+                      <stop offset="100%" stopColor="#ef4444" stopOpacity={0} />
+                    </radialGradient>
+                  ))}
+                </defs>
+                {activeFloorResult?.aps.map((ap) => (
+                  <circle
+                    key={`heat-c-${ap.id}`}
+                    cx={ap.pos.x * PX_PER_M}
+                    cy={ap.pos.y * PX_PER_M}
+                    r={ap.radius * PX_PER_M}
+                    fill={`url(#heat-${ap.id})`}
+                  />
+                ))}
                 {activeFloorResult?.aps.map((ap) => (
                   <g key={ap.id}>
                     <line

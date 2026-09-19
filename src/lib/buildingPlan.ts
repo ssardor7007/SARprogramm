@@ -1,5 +1,5 @@
 import type { Product } from '../types'
-import { AREA_PER_AP, findProduct, type BuildingType, type WallMaterial } from './designer'
+import { findProduct, type BuildingType, type WallMaterial } from './designer'
 
 export const CANVAS_W_M = 40
 export const CANVAS_H_M = 24
@@ -38,14 +38,23 @@ export interface BuildingPlan {
 
 export interface APPlacement {
   id: string
-  roomId: string
   pos: Point
+  /** Радиус уверенного приёма для этой точки — определяет самый требовательный из покрываемых участков */
+  radius: number
   cableLengthM: number
 }
 
 const MATERIAL_RANK: Record<WallMaterial, number> = { open: 0, drywall: 1, brick: 2, concrete: 3 }
 const TIER_BY_RANK = ['budget', 'mid', 'mid', 'premium'] as const
 const AP_ID_BY_TIER = { budget: 'tpl-eap225', mid: 'tpl-eap670', premium: 'tpl-eap660-hd' } as const
+
+/** Радиус уверенного покрытия одной точкой доступа, метров — зависит от того, что сигналу приходится пробивать */
+export const COVERAGE_RADIUS_M: Record<WallMaterial, number> = {
+  open: 16,
+  drywall: 12,
+  brick: 9,
+  concrete: 7,
+}
 
 const CABLE_SLACK = 1.15
 /** Запас на спуск от потолка до точки доступа + разделка на патч-панели, метров */
@@ -77,24 +86,106 @@ export interface BuildingPlanResult {
   warnings: string[]
 }
 
-function apPositions(room: Room, count: number): Point[] {
-  if (count <= 1) return [{ x: room.x + room.w / 2, y: room.y + room.h / 2 }]
-  const cols = Math.max(1, Math.round(Math.sqrt((count * room.w) / room.h)))
-  const rows = Math.ceil(count / cols)
-  const positions: Point[] = []
-  for (let r = 0; r < rows && positions.length < count; r++) {
-    for (let c = 0; c < cols && positions.length < count; c++) {
-      positions.push({
-        x: room.x + ((c + 0.5) * room.w) / cols,
-        y: room.y + ((r + 0.5) * room.h) / rows,
-      })
-    }
-  }
-  return positions
-}
-
 function manhattan(a: Point, b: Point) {
   return Math.abs(a.x - b.x) + Math.abs(a.y - b.y)
+}
+
+function euclid(a: Point, b: Point) {
+  return Math.hypot(a.x - b.x, a.y - b.y)
+}
+
+interface CoverageTarget {
+  point: Point
+  /** Требуемый радиус покрытия для этой точки (зависит от материала стен её комнаты) */
+  radius: number
+}
+
+/**
+ * Точки, которые обязательно должны попадать в зону уверенного приёма.
+ * Маленькие комнаты (меньше радиуса покрытия) представлены одной точкой в центре —
+ * их вполне может накрыть точка доступа из коридора или соседнего помещения.
+ * Большие помещения получают сетку точек, чтобы не остались слепые зоны по углам.
+ */
+function buildCoverageTargets(rooms: Room[]): CoverageTarget[] {
+  const targets: CoverageTarget[] = []
+  for (const room of rooms) {
+    const radius = COVERAGE_RADIUS_M[room.wallMaterial]
+    if (room.w <= radius && room.h <= radius) {
+      targets.push({ point: { x: room.x + room.w / 2, y: room.y + room.h / 2 }, radius })
+      continue
+    }
+    const step = Math.max(1.5, radius * 0.8)
+    const cols = Math.max(1, Math.round(room.w / step))
+    const rows = Math.max(1, Math.round(room.h / step))
+    for (let ry = 0; ry < rows; ry++) {
+      for (let rx = 0; rx < cols; rx++) {
+        targets.push({
+          point: { x: room.x + ((rx + 0.5) * room.w) / cols, y: room.y + ((ry + 0.5) * room.h) / rows },
+          radius,
+        })
+      }
+    }
+  }
+  return targets
+}
+
+/** Возможные места для точки доступа: сетка по всему этажу (включая коридоры) плюс центр каждой комнаты */
+function buildCandidatePoints(rooms: Room[]): Point[] {
+  const points: Point[] = []
+  const step = 3
+  for (let y = step / 2; y < CANVAS_H_M; y += step) {
+    for (let x = step / 2; x < CANVAS_W_M; x += step) {
+      points.push({ x, y })
+    }
+  }
+  for (const room of rooms) {
+    points.push({ x: room.x + room.w / 2, y: room.y + room.h / 2 })
+  }
+  return points
+}
+
+/**
+ * Жадное покрытие: на каждом шаге ставим точку доступа там, где она накрывает
+ * больше всего ещё не накрытых участков, пока не закроем всё. Так одна точка
+ * в коридоре обслуживает сразу несколько соседних комнат, а не по одной AP на
+ * каждую комнату.
+ */
+function greedyCoverage(candidates: Point[], targets: CoverageTarget[]): { pos: Point; radius: number }[] {
+  const covered = new Array(targets.length).fill(false)
+  const placements: { pos: Point; radius: number }[] = []
+  let remaining = targets.length
+  let guard = 0
+
+  while (remaining > 0 && guard < 300) {
+    guard++
+    let bestPoint: Point | null = null
+    let bestCoverIdx: number[] = []
+
+    for (const candidate of candidates) {
+      const coverIdx: number[] = []
+      for (let i = 0; i < targets.length; i++) {
+        if (!covered[i] && euclid(candidate, targets[i].point) <= targets[i].radius) coverIdx.push(i)
+      }
+      if (coverIdx.length > bestCoverIdx.length) {
+        bestCoverIdx = coverIdx
+        bestPoint = candidate
+      }
+    }
+
+    if (!bestPoint || bestCoverIdx.length === 0) {
+      const idx = covered.findIndex((c) => !c)
+      if (idx === -1) break
+      bestPoint = targets[idx].point
+      bestCoverIdx = [idx]
+    }
+
+    for (const idx of bestCoverIdx) covered[idx] = true
+    remaining -= bestCoverIdx.length
+    const radius = Math.max(...bestCoverIdx.map((i) => targets[i].radius))
+    placements.push({ pos: bestPoint, radius })
+  }
+
+  return placements
 }
 
 function pickSwitch(catalog: Product[], portsNeeded: number): { product?: Product; qty: number } {
@@ -112,18 +203,16 @@ export function planBuilding(plan: BuildingPlan, catalog: Product[]): BuildingPl
   const serverFloor = plan.floors[serverFloorIndex] ?? plan.floors[0]
 
   const perFloor: FloorResult[] = plan.floors.map((floor, floorIndex) => {
-    const aps: APPlacement[] = []
-    let worstRank = 0
-    for (const room of floor.rooms) {
-      const area = room.w * room.h
-      const areaPerAP = AREA_PER_AP[room.wallMaterial]
-      const count = Math.max(1, Math.ceil(area / areaPerAP))
-      worstRank = Math.max(worstRank, MATERIAL_RANK[room.wallMaterial])
-      for (const pos of apPositions(room, count)) {
-        const cableLengthM = manhattan(pos, floor.switchPoint) * CABLE_SLACK + DROP_ALLOWANCE_M
-        aps.push({ id: `ap-${room.id}-${aps.length}`, roomId: room.id, pos, cableLengthM })
-      }
-    }
+    const worstRank = floor.rooms.reduce((rank, room) => Math.max(rank, MATERIAL_RANK[room.wallMaterial]), 0)
+
+    const targets = buildCoverageTargets(floor.rooms)
+    const candidates = buildCandidatePoints(floor.rooms)
+    const aps: APPlacement[] = greedyCoverage(candidates, targets).map((placement, i) => ({
+      id: `ap-${floor.id}-${i}`,
+      pos: placement.pos,
+      radius: placement.radius,
+      cableLengthM: manhattan(placement.pos, floor.switchPoint) * CABLE_SLACK + DROP_ALLOWANCE_M,
+    }))
 
     const apTier = TIER_BY_RANK[worstRank]
     const apProduct = aps.length > 0 ? findProduct(catalog, AP_ID_BY_TIER[apTier], 'ap', apTier) : undefined
