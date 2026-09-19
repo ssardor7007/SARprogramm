@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { Product } from '../types'
 import { brandColor } from '../lib/brandTheme'
-import { genId } from '../lib/storage'
+import { genId, usePersistedState } from '../lib/storage'
 import { ProductImage } from './ProductImage'
 
 interface Props {
@@ -18,8 +18,8 @@ const UNIT_PX = 22
 const RACK_HEIGHTS = [12, 24, 42] as const
 
 export function RackDesignerView({ catalog }: Props) {
-  const [rackHeight, setRackHeight] = useState<(typeof RACK_HEIGHTS)[number]>(42)
-  const [items, setItems] = useState<RackItem[]>([])
+  const [rackHeight, setRackHeight] = usePersistedState<(typeof RACK_HEIGHTS)[number]>('rack-height', 42)
+  const [items, setItems] = usePersistedState<RackItem[]>('rack-items', [])
   const [search, setSearch] = useState('')
   const [brandFilter, setBrandFilter] = useState('all')
   const [dragIndex, setDragIndex] = useState<number | null>(null)
@@ -74,12 +74,22 @@ export function RackDesignerView({ catalog }: Props) {
           </p>
         </div>
         {items.length > 0 && (
-          <button
-            onClick={() => window.print()}
-            className="rounded bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700"
-          >
-            Печать / сохранить как PDF
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                if (confirm('Очистить текущий проект стойки?')) setItems([])
+              }}
+              className="rounded border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100"
+            >
+              Очистить стойку
+            </button>
+            <button
+              onClick={() => window.print()}
+              className="rounded bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700"
+            >
+              Печать / сохранить как PDF
+            </button>
+          </div>
         )}
       </div>
 

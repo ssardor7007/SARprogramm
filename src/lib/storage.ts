@@ -50,6 +50,17 @@ export function usePersistedList<T extends { id: string }>(key: string, seed: T[
   return { items, setItems, upsert, remove, resetToSeed }
 }
 
+/** Персистентный стейт в localStorage для произвольных JSON-значений (не список с id). */
+export function usePersistedState<T>(key: string, initial: T) {
+  const [value, setValue] = useState<T>(() => load(key, initial))
+
+  useEffect(() => {
+    save(key, value)
+  }, [key, value])
+
+  return [value, setValue] as const
+}
+
 export function genId(prefix: string) {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
 }
