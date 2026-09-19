@@ -90,6 +90,23 @@ export function findProduct(catalog: Product[], id: string, category: Product['c
 }
 
 /**
+ * В каталоге категория «switch» вперемешку содержит и PoE-коммутаторы, и
+ * обычные (без PoE). В этом приложении коммутатор всегда подбирается на
+ * роль «PoE-коммутатор» — питать точки доступа/камеры, — поэтому пул нужно
+ * сузить до моделей, у которых PoE реально есть, иначе подбор может выдать
+ * коммутатор без единого PoE-порта.
+ */
+function isPoeSwitch(p: Product): boolean {
+  return /PoE/i.test(p.specs['Характеристики'] ?? '')
+}
+
+function preferPoeSwitches(pool: Product[], category: Product['category']): Product[] {
+  if (category !== 'switch') return pool
+  const poeOnly = pool.filter(isPoeSwitch)
+  return poeOnly.length > 0 ? poeOnly : pool
+}
+
+/**
  * Подбирает товар нужной категории и ценового сегмента среди ВСЕХ брендов
  * площадки (не только TP-Link) — так бюджетный, оптимальный и премиум
  * пакеты естественно расходятся по разным брендам, как в реальной практике
@@ -97,7 +114,10 @@ export function findProduct(catalog: Product[], id: string, category: Product['c
  * узнаваемый премиальный бренд у клиентов.
  */
 export function pickTierProduct(catalog: Product[], category: Product['category'], tier: Tier): Product | undefined {
-  const pool = catalog.filter((p) => p.category === category && p.priceCategory === tier)
+  const pool = preferPoeSwitches(
+    catalog.filter((p) => p.category === category && p.priceCategory === tier),
+    category,
+  )
   if (pool.length === 0) return undefined
   if (tier === 'premium') {
     const ubiquiti = pool.filter((p) => p.brand === 'Ubiquiti (UniFi)').sort((a, b) => a.priceUSD - b.priceUSD)
@@ -122,7 +142,10 @@ function pickForTierAndBrand(catalog: Product[], category: Product['category'], 
   if (preferredBrand === 'all') {
     return { product: pickTierProduct(catalog, category, tier) }
   }
-  const brandPool = catalog.filter((p) => p.category === category && p.brand === preferredBrand)
+  const brandPool = preferPoeSwitches(
+    catalog.filter((p) => p.category === category && p.brand === preferredBrand),
+    category,
+  )
   if (brandPool.length === 0) {
     return {
       product: pickTierProduct(catalog, category, tier),

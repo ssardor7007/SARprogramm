@@ -1,6 +1,15 @@
 import type { Product } from '../types'
 
 /**
+ * Версия каталога-заготовки. Каталог хранится в localStorage браузера, так
+ * что правки категорий/цен ниже сами по себе не долетают до тех, кто уже
+ * открывал сайт раньше — usePersistedList сравнивает эту версию с
+ * сохранённой и переинициализирует каталог свежим списком при несовпадении.
+ * Увеличивайте на 1 при каждой content-fix правке PRODUCTS.
+ */
+export const CATALOG_VERSION = 2
+
+/**
  * Каталог площадки. TP-Link/Wi-Tek/Hikvision/Ubiquiti/MikroTik/Оптика — из
  * прайс-листов поставщика (остатки — ориентировочные, обновите под свой
  * склад в разделе «Каталог»). Ruijie/Tenda/Dahua — примеры для сравнения,
@@ -146,7 +155,7 @@ export const PRODUCTS: Product[] = [
       'Цена с НДС (сум)': '705 000',
     },
     priceUSD: 56.4,
-    priceCategory: 'mid',
+    priceCategory: 'budget',
     stock: 10,
     pros: [],
     cons: [],
@@ -315,7 +324,7 @@ export const PRODUCTS: Product[] = [
   {
     id: 'tpl-poe150s',
     brand: 'TP-Link',
-    category: 'switch',
+    category: 'other',
     model: 'POE150S',
     specs: {
       'Характеристики': 'Omada Инжектор PoE Порты: 1 × гигабитный порт PoE, 1 × гигабитный порт без PoE Спецификация: совместимость с 802.3af, передача данных и питания по одному кабелю на расстояние до 100 метров, пластиковый корпус, компактный размер',
@@ -331,7 +340,7 @@ export const PRODUCTS: Product[] = [
   {
     id: 'tpl-poe2412g',
     brand: 'TP-Link',
-    category: 'switch',
+    category: 'other',
     model: 'POE2412G',
     specs: {
       'Характеристики': 'Omada Инжектор Passive PoE 24 В Порты: 1 × гигабитный порт PoE, 1 × гигабитный порт без PoE Спецификация: передача данных и питания по одному кабелю, входное напряжение 24 В, бюджет PoE 12 Вт, пластиковый корпус',
@@ -347,7 +356,7 @@ export const PRODUCTS: Product[] = [
   {
     id: 'tpl-poe4818g',
     brand: 'TP-Link',
-    category: 'switch',
+    category: 'other',
     model: 'POE4818G',
     specs: {
       'Характеристики': 'Omada Инжектор Passive PoE 48 В Порты: 1 × гигабитный порт PoE, 1 × гигабитный порт без PoE Спецификация: передача данных и питания по одному кабелю, входное напряжение 48 В, PoE-питание 18 Вт, пластиковый корпус',
@@ -363,7 +372,7 @@ export const PRODUCTS: Product[] = [
   {
     id: 'tpl-poe4824g',
     brand: 'TP-Link',
-    category: 'switch',
+    category: 'other',
     model: 'POE4824G',
     specs: {
       'Характеристики': 'Omada Инжектор Passive PoE 48 В Порты: 1 × гигабитный порт PoE, 1 × гигабитный порт без PoE Спецификация: передача данных и питания по одному кабелю, входное напряжение 48 В, бюджет PoE 24 Вт, пластиковый корпус',
@@ -674,7 +683,7 @@ export const PRODUCTS: Product[] = [
       'Цена с НДС (сум)': '2 911 250',
     },
     priceUSD: 232.9,
-    priceCategory: 'premium',
+    priceCategory: 'budget',
     stock: 10,
     pros: [],
     cons: [],
@@ -722,7 +731,7 @@ export const PRODUCTS: Product[] = [
       'Цена с НДС (сум)': '1 260 000',
     },
     priceUSD: 100.8,
-    priceCategory: 'mid',
+    priceCategory: 'budget',
     stock: 10,
     pros: [],
     cons: [],
@@ -834,7 +843,7 @@ export const PRODUCTS: Product[] = [
       'Цена с НДС (сум)': '990 000',
     },
     priceUSD: 79.2,
-    priceCategory: 'mid',
+    priceCategory: 'budget',
     stock: 10,
     pros: [],
     cons: [],
@@ -861,7 +870,7 @@ export const PRODUCTS: Product[] = [
   {
     id: 'tpl-archer-mr600',
     brand: 'TP-Link',
-    category: 'ap',
+    category: 'other',
     model: 'Archer MR600',
     specs: {
       'Характеристики': 'Первый роутер 4G+ от TP-Link — скорость до 300 Мбит/с благодаря поддержке 4G+ Cat6 Не требует настройки — вставьте SIM-карту и включите роутер (поддержка SIM-карт в более чем 100 странах) Поддержка MU-MIMO — обмен данными сразу с несколькими устройствами увеличивает эффективность Wi‑Fi сети, Поддержка OneMesh — используйте усилители OneMesh, чтобы создать покрытие во всём доме и не терять сигнал при перемещении',
@@ -877,7 +886,7 @@ export const PRODUCTS: Product[] = [
   {
     id: 'tpl-cpe610',
     brand: 'TP-Link',
-    category: 'ap',
+    category: 'other',
     model: 'CPE610',
     specs: {
       'Характеристики': 'TP-Link Outdoor 5GHz 300Mbps CPE точка беспроводной связи (point-to-point до 5 км)',
@@ -893,7 +902,7 @@ export const PRODUCTS: Product[] = [
   {
     id: 'tpl-cpe710',
     brand: 'TP-Link',
-    category: 'ap',
+    category: 'other',
     model: 'CPE710',
     specs: {
       'Характеристики': 'TP-Link Outdoor 5GHz 867Mbps CPE точка беспроводной связи (AC, point-to-point до 5 км)',
@@ -909,7 +918,7 @@ export const PRODUCTS: Product[] = [
   {
     id: 'tpl-cpe220',
     brand: 'TP-Link',
-    category: 'ap',
+    category: 'other',
     model: 'CPE220',
     specs: {
       'Характеристики': 'TP-Link Outdoor 2.4GHz 300Mbps CPE — point-to-point до 13 км',
@@ -1421,7 +1430,7 @@ export const PRODUCTS: Product[] = [
   {
     id: 'tpl-ne210-outdoor',
     brand: 'TP-Link',
-    category: 'ap',
+    category: 'other',
     model: 'NE210-Outdoor',
     specs: {
       'Характеристики': 'Наружный 5G-маршрутизатор, Встроенный 5G модем Скорость: 5G до 3.4 Гбит/с, 4G+ Cat19 1600 Мбит/с/200 Мбит/с Спецификация: 1 × порт 2.5 Гбит/с PoE, SA/NSA/LTE-FDD/LTE-TDD/DC-HSPA+/HSPA+/HSPA/UMTS, 5G-платформа QCT X62 Особенности: мобильное приложение Aginet App, поддержка облачного доступа, родительский контроль, QoS, TR069(TR098/TR181)',
@@ -1437,7 +1446,7 @@ export const PRODUCTS: Product[] = [
   {
     id: 'tpl-nx511v',
     brand: 'TP-Link',
-    category: 'ap',
+    category: 'other',
     model: 'NX511v',
     specs: {
       'Характеристики': '5G AX3000 Телефонный маршрутизатор  WiFi, Встроенный 5G модем, Скорость: 2402 Мбит/с для 5 ГГц + 574Мбит/с для 2.4 ГГц, 5G: 3.4 Гбит/с; 4G+: Cat19 - 1.6 Гбит/с | 200 Мбит/с Спецификация: 2 × гигабитных LAN-порта, 1 × гигабитный WAN/LAN-порт, 1 × FXS-порт RJ11, SA/NSA/LTE-FDD/LTE-TDD/DC-HSPA+/HSPA+/HSPA/UMTS, 5G-платформа QCT X62 Особенности: мобильное приложение Aginet App, Easymesh, поддержка облачного доступа',

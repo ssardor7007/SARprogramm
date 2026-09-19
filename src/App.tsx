@@ -5,7 +5,7 @@ import { DesignerView } from './components/DesignerView'
 import { CatalogIcon, DesignerIcon, PlanIcon, QuoteIcon, RackIcon, ToolsIcon } from './components/NavIcons'
 import { QuoteView } from './components/QuoteView'
 import { RackDesignerView } from './components/RackDesignerView'
-import { PRODUCTS } from './data/products'
+import { CATALOG_VERSION, PRODUCTS } from './data/products'
 import { brandColor } from './lib/brandTheme'
 import { visibleBrands } from './lib/features'
 import { usePersistedList } from './lib/storage'
@@ -30,7 +30,7 @@ function App() {
   const [clientTab, setClientTab] = useState<ClientTab>('catalog')
   const [proTab, setProTab] = useState<ProTab>('designer')
 
-  const catalog = usePersistedList('products', PRODUCTS)
+  const catalog = usePersistedList('products', PRODUCTS, CATALOG_VERSION)
 
   const tabs = section === 'client' ? CLIENT_TABS : PRO_TABS
   const activeTab = section === 'client' ? clientTab : proTab

@@ -20,13 +20,23 @@ function save<T>(key: string, value: T) {
   }
 }
 
-/** Персистентный стейт в localStorage, с ленивой инициализацией из seed-данных. */
-export function usePersistedList<T extends { id: string }>(key: string, seed: T[]) {
-  const [items, setItems] = useState<T[]>(() => load(key, seed))
+/**
+ * Персистентный стейт в localStorage, с ленивой инициализацией из seed-данных.
+ * Если передана `seedVersion` и она не совпадает с сохранённой — локальные
+ * данные считаются устаревшими (например, seed поправили из-за ошибки в
+ * данных) и переинициализируются свежим seed, а не хранятся вечно как есть.
+ */
+export function usePersistedList<T extends { id: string }>(key: string, seed: T[], seedVersion?: number) {
+  const versionKey = `${key}:version`
+  const [items, setItems] = useState<T[]>(() => {
+    if (seedVersion !== undefined && load(versionKey, -1) !== seedVersion) return seed
+    return load(key, seed)
+  })
 
   useEffect(() => {
     save(key, items)
-  }, [key, items])
+    if (seedVersion !== undefined) save(versionKey, seedVersion)
+  }, [key, items, seedVersion])
 
   const upsert = useCallback((item: T) => {
     setItems((prev) => {
