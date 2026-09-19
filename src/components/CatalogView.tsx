@@ -36,7 +36,7 @@ export function CatalogView({ items, onSave, onRemove, onReset }: Props) {
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-slate-900">Каталог</h1>
-          <p className="text-sm text-slate-500">Все бренды площадки в одном месте — сеть и видеонаблюдение.</p>
+          <p className="text-sm text-slate-500">Все бренды площадки в одном месте.</p>
         </div>
         <div className="flex gap-2">
           <button

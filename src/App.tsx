@@ -35,7 +35,7 @@ function App() {
               </div>
               <div>
                 <h1 className="font-display text-lg font-extrabold text-[var(--text)]">SAR</h1>
-                <p className="text-xs text-[var(--text-muted)]">Сетевое оборудование и видеонаблюдение</p>
+                <p className="text-xs text-[var(--text-muted)]">Сетевое оборудование</p>
               </div>
             </div>
 
