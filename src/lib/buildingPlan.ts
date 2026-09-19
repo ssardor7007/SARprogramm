@@ -386,3 +386,65 @@ export function generateFloorPlan(params: GenerateParams): BuildingPlan {
 function round1(v: number) {
   return Math.round(v * 10) / 10
 }
+
+/**
+ * Строит чертёж этажей по РЕАЛЬНЫМ промерам (длина/ширина/высота/номера),
+ * которые уже ввели в «Подборе по объекту» — в отличие от generateFloorPlan,
+ * не подбирает форму под площадь, а использует точные размеры каждого этажа.
+ * Так план из Дизайнера и план в «Плане здания» совпадают без повторного ввода.
+ */
+export function generateFloorPlanFromDesigner(
+  buildingType: BuildingType,
+  wallMaterial: WallMaterial,
+  floors: { lengthM: number; widthM: number; ceilingHeightM: number; rooms: number }[],
+): BuildingPlan {
+  const isHotelLike = buildingType === 'hotel' || buildingType === 'apartment'
+  const resultFloors: Floor[] = floors.map((f, i) => {
+    const floorId = `floor-${i}`
+    const w = clampNum(f.widthM, 4, CANVAS_W_M)
+    const h = clampNum(f.lengthM, 4, CANVAS_H_M)
+    let rooms: Room[]
+    let switchPoint: Point
+
+    if (isHotelLike && f.rooms > 0) {
+      const n = Math.round(f.rooms)
+      const roomsPerSide = Math.ceil(n / 2)
+      const corridorWidth = 2.4
+      const roomDepth = clampNum((h - corridorWidth) / 2, 3, 8)
+      const roomWidth = clampNum(w / roomsPerSide - 0.1, 3, 5.5)
+
+      rooms = []
+      for (let r = 0; r < n; r++) {
+        const side = r < roomsPerSide ? 0 : 1
+        const idxInSide = side === 0 ? r : r - roomsPerSide
+        rooms.push({
+          id: `${floorId}-room-${r}`,
+          name: `Номер ${r + 1}`,
+          x: round1(idxInSide * roomWidth),
+          y: side === 0 ? 0 : round1(roomDepth + corridorWidth),
+          w: round1(roomWidth),
+          h: roomDepth,
+          wallMaterial,
+        })
+      }
+      switchPoint = { x: round1((roomsPerSide * roomWidth) / 2), y: round1(roomDepth + corridorWidth / 2) }
+    } else {
+      rooms = [
+        {
+          id: `${floorId}-room-0`,
+          name: 'Открытое пространство',
+          x: 0,
+          y: 0,
+          w: round1(w),
+          h: round1(h),
+          wallMaterial,
+        },
+      ]
+      switchPoint = { x: round1(w / 2), y: round1(h / 2) }
+    }
+
+    return { id: floorId, name: `Этаж ${i + 1}`, heightM: f.ceilingHeightM, rooms, aps: autoPlaceAPs(rooms), switchPoint }
+  })
+
+  return { floors: resultFloors, serverFloorId: resultFloors[0].id }
+}

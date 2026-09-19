@@ -17,6 +17,7 @@ import {
   type TierResult,
   type WallMaterial,
 } from '../lib/designer'
+import { sendDesignToBuildingPlan } from '../lib/buildingPlanBridge'
 import { SHOW_VIDEO_SURVEILLANCE } from '../lib/features'
 import { addProductsToRack } from '../lib/rackCart'
 
@@ -24,6 +25,8 @@ interface Props {
   catalog: Product[]
   /** Вызывается после отправки варианта в «Дизайнер стойки» — используется, чтобы переключить вкладку. */
   onSentToRack?: () => void
+  /** Вызывается после отправки промеров в «План здания» — используется, чтобы переключить вкладку. */
+  onSentToPlan?: () => void
 }
 
 const WALL_OPTIONS: WallMaterial[] = ['open', 'drywall', 'brick', 'concrete']
@@ -36,7 +39,7 @@ const TIER_ACCENT: Record<Tier, { border: string; badge: string; ring: string }>
   premium: { border: 'border-violet-200', badge: 'bg-violet-100 text-violet-700', ring: '' },
 }
 
-export function DesignerView({ catalog, onSentToRack }: Props) {
+export function DesignerView({ catalog, onSentToRack, onSentToPlan }: Props) {
   const [input, setInput] = useState<DesignerInput>({
     buildingType: 'office',
     floors: [
@@ -100,6 +103,11 @@ export function DesignerView({ catalog, onSentToRack }: Props) {
   function sendTierToRack(tierResult: TierResult) {
     addProductsToRack(tierResult.lines.map((line) => ({ product: line.product, qty: line.qty })))
     onSentToRack?.()
+  }
+
+  function sendToBuildingPlan() {
+    sendDesignToBuildingPlan(input.buildingType, input.wallMaterial, input.floors)
+    onSentToPlan?.()
   }
 
   return (
@@ -511,12 +519,20 @@ export function DesignerView({ catalog, onSentToRack }: Props) {
                         </div>
                       )}
 
-                      <button
-                        onClick={() => sendTierToRack(t)}
-                        className="no-print mt-1 rounded border border-slate-300 px-2 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
-                      >
-                        Добавить в «Дизайнер стойки» →
-                      </button>
+                      <div className="mt-1 flex flex-col gap-1.5">
+                        <button
+                          onClick={() => sendTierToRack(t)}
+                          className="no-print rounded border border-slate-300 px-2 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                        >
+                          Добавить в «Дизайнер стойки» →
+                        </button>
+                        <button
+                          onClick={sendToBuildingPlan}
+                          className="no-print rounded border border-slate-300 px-2 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                        >
+                          Показать на плане здания →
+                        </button>
+                      </div>
                     </div>
                   )
                 })}

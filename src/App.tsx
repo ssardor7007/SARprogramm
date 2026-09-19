@@ -123,7 +123,11 @@ function App() {
         )}
         {section === 'client' && clientTab === 'quote' && <QuoteView catalog={catalog.items} />}
         {section === 'pro' && proTab === 'designer' && (
-          <DesignerView catalog={catalog.items} onSentToRack={() => setProTab('rack')} />
+          <DesignerView
+            catalog={catalog.items}
+            onSentToRack={() => setProTab('rack')}
+            onSentToPlan={() => setProTab('plan')}
+          />
         )}
         {section === 'pro' && proTab === 'plan' && <BuildingPlanView catalog={catalog.items} />}
         {section === 'pro' && proTab === 'rack' && <RackDesignerView catalog={catalog.items} />}
