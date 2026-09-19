@@ -1,5 +1,6 @@
 import type { Product } from '../types'
 import { findProduct, type BuildingType, type WallMaterial } from './designer'
+import { genId } from './storage'
 
 export const CANVAS_W_M = 40
 export const CANVAS_H_M = 24
@@ -20,12 +21,20 @@ export interface Point {
   y: number
 }
 
+/** Точка доступа, как её сохранил пользователь — координаты, дальше их можно перетаскивать вручную */
+export interface PlacedAP {
+  id: string
+  pos: Point
+}
+
 export interface Floor {
   id: string
   name: string
   /** Высота этажа в метрах — используется для расчёта магистрального кабеля до серверной */
   heightM: number
   rooms: Room[]
+  /** Точки доступа на этаже — расставляются автоматически или руками, дальше их можно двигать */
+  aps: PlacedAP[]
   /** Точка коммутации (шкаф/коммутатор) на этаже, к которой идут кабели от точек доступа */
   switchPoint: Point
 }
@@ -55,6 +64,7 @@ export const COVERAGE_RADIUS_M: Record<WallMaterial, number> = {
   brick: 9,
   concrete: 7,
 }
+const RADIUS_BY_RANK = [COVERAGE_RADIUS_M.open, COVERAGE_RADIUS_M.drywall, COVERAGE_RADIUS_M.brick, COVERAGE_RADIUS_M.concrete]
 
 const CABLE_SLACK = 1.15
 /** Запас на спуск от потолка до точки доступа + разделка на патч-панели, метров */
@@ -188,6 +198,20 @@ function greedyCoverage(candidates: Point[], targets: CoverageTarget[]): { pos: 
   return placements
 }
 
+/**
+ * Автоматически расставляет точки доступа по комнатам этажа (жадное покрытие).
+ * Результат — обычные точки, которые дальше можно свободно перетаскивать руками.
+ */
+export function autoPlaceAPs(rooms: Room[]): PlacedAP[] {
+  const targets = buildCoverageTargets(rooms)
+  const candidates = buildCandidatePoints(rooms)
+  return greedyCoverage(candidates, targets).map((p) => ({ id: genId('ap'), pos: p.pos }))
+}
+
+export function newPlacedAP(pos: Point): PlacedAP {
+  return { id: genId('ap'), pos }
+}
+
 function pickSwitch(catalog: Product[], portsNeeded: number): { product?: Product; qty: number } {
   if (portsNeeded <= 0) return { product: undefined, qty: 0 }
   if (portsNeeded <= 8) {
@@ -204,14 +228,13 @@ export function planBuilding(plan: BuildingPlan, catalog: Product[]): BuildingPl
 
   const perFloor: FloorResult[] = plan.floors.map((floor, floorIndex) => {
     const worstRank = floor.rooms.reduce((rank, room) => Math.max(rank, MATERIAL_RANK[room.wallMaterial]), 0)
+    const radius = RADIUS_BY_RANK[worstRank]
 
-    const targets = buildCoverageTargets(floor.rooms)
-    const candidates = buildCandidatePoints(floor.rooms)
-    const aps: APPlacement[] = greedyCoverage(candidates, targets).map((placement, i) => ({
-      id: `ap-${floor.id}-${i}`,
-      pos: placement.pos,
-      radius: placement.radius,
-      cableLengthM: manhattan(placement.pos, floor.switchPoint) * CABLE_SLACK + DROP_ALLOWANCE_M,
+    const aps: APPlacement[] = floor.aps.map((placed) => ({
+      id: placed.id,
+      pos: placed.pos,
+      radius,
+      cableLengthM: manhattan(placed.pos, floor.switchPoint) * CABLE_SLACK + DROP_ALLOWANCE_M,
     }))
 
     const apTier = TIER_BY_RANK[worstRank]
@@ -354,7 +377,7 @@ export function generateFloorPlan(params: GenerateParams): BuildingPlan {
       switchPoint = { x: round1(w / 2), y: round1(h / 2) }
     }
 
-    floors.push({ id: floorId, name: `Этаж ${i + 1}`, heightM: params.floorHeightM, rooms, switchPoint })
+    floors.push({ id: floorId, name: `Этаж ${i + 1}`, heightM: params.floorHeightM, rooms, aps: autoPlaceAPs(rooms), switchPoint })
   }
 
   return { floors, serverFloorId: floors[0].id }

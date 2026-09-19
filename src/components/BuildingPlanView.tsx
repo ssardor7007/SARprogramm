@@ -1,9 +1,11 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import type { Product } from '../types'
 import {
+  autoPlaceAPs,
   CANVAS_H_M,
   CANVAS_W_M,
   generateFloorPlan,
+  newPlacedAP,
   planBuilding,
   wallMaterialColor,
   type BuildingPlan,
@@ -41,6 +43,7 @@ function defaultPlan(): BuildingPlan {
         name: 'Этаж 1',
         heightM: 3.2,
         rooms: [],
+        aps: [],
         switchPoint: { x: CANVAS_W_M / 2, y: CANVAS_H_M / 2 },
       },
     ],
@@ -52,6 +55,7 @@ type DragState =
   | { kind: 'room'; roomId: string; startClientX: number; startClientY: number; startX: number; startY: number; w: number; h: number }
   | { kind: 'resize'; roomId: string; startClientX: number; startClientY: number; x: number; y: number; startW: number; startH: number }
   | { kind: 'switch'; startClientX: number; startClientY: number; startX: number; startY: number }
+  | { kind: 'ap'; apId: string; startClientX: number; startClientY: number; startX: number; startY: number }
 
 export function BuildingPlanView({ catalog }: Props) {
   const [plan, setPlan] = usePersistedState<BuildingPlan>('building-plan', defaultPlan())
@@ -110,6 +114,7 @@ export function BuildingPlanView({ catalog }: Props) {
       name: `Этаж ${plan.floors.length + 1}`,
       heightM: 3.2,
       rooms: [],
+      aps: [],
       switchPoint: { x: CANVAS_W_M / 2, y: CANVAS_H_M / 2 },
     }
     setPlan((prev) => ({ ...prev, floors: [...prev.floors, floor] }))
@@ -225,6 +230,39 @@ export function BuildingPlanView({ catalog }: Props) {
 
   function onAnyPointerUp() {
     dragRef.current = null
+  }
+
+  function onApPointerDown(e: ReactPointerEvent<SVGCircleElement>, apId: string, pos: { x: number; y: number }) {
+    e.stopPropagation()
+    dragRef.current = { kind: 'ap', apId, startClientX: e.clientX, startClientY: e.clientY, startX: pos.x, startY: pos.y }
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }
+
+  function onApPointerMove(e: ReactPointerEvent<SVGCircleElement>) {
+    const d = dragRef.current
+    if (!d || d.kind !== 'ap') return
+    const dxM = (e.clientX - d.startClientX) / PX_PER_M
+    const dyM = (e.clientY - d.startClientY) / PX_PER_M
+    const nextPos = { x: round1(clamp(d.startX + dxM, 0, CANVAS_W_M)), y: round1(clamp(d.startY + dyM, 0, CANVAS_H_M)) }
+    updateFloor(activeFloor.id, (f) => ({ ...f, aps: f.aps.map((ap) => (ap.id === d.apId ? { ...ap, pos: nextPos } : ap)) }))
+  }
+
+  function removeAP(apId: string) {
+    updateFloor(activeFloor.id, (f) => ({ ...f, aps: f.aps.filter((ap) => ap.id !== apId) }))
+  }
+
+  function addAP() {
+    updateFloor(activeFloor.id, (f) => ({
+      ...f,
+      aps: [...f.aps, newPlacedAP({ x: f.switchPoint.x + 3, y: f.switchPoint.y - 3 })],
+    }))
+  }
+
+  function autoPlaceForActiveFloor() {
+    if (activeFloor.aps.length > 0 && !confirm('Это заменит текущее расположение точек доступа на этаже. Расставить заново автоматически?')) {
+      return
+    }
+    updateFloor(activeFloor.id, (f) => ({ ...f, aps: autoPlaceAPs(f.rooms) }))
   }
 
   const selectedRoom = activeFloor.rooms.find((r) => r.id === selectedRoomId) ?? null
@@ -380,8 +418,8 @@ export function BuildingPlanView({ catalog }: Props) {
         <div>
           <p className="no-print mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400">
             <span>
-              Метка <b>🖧</b> — коммутатор/серверная этого этажа, перетащите её. Синие точки — точки доступа Wi-Fi, они
-              расставлены так, чтобы одна точка накрывала сразу несколько соседних комнат, а не по одной на комнату.
+              Метка <b>🖧</b> — коммутатор/серверная этого этажа, перетащите её. Синие точки — точки доступа Wi-Fi: их можно
+              свободно перетаскивать мышью, двойной клик удаляет точку.
             </span>
             <span className="flex items-center gap-1.5 whitespace-nowrap">
               Покрытие сигнала:
@@ -399,6 +437,14 @@ export function BuildingPlanView({ catalog }: Props) {
               </span>
             </span>
           </p>
+          <div className="no-print mb-2 flex gap-2">
+            <button onClick={addAP} className="rounded border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50">
+              + Точка доступа
+            </button>
+            <button onClick={autoPlaceForActiveFloor} className="rounded border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50">
+              Расставить автоматически
+            </button>
+          </div>
           <div className="overflow-auto rounded-lg border-2 border-slate-300 bg-white">
             <div
               ref={canvasRef}
@@ -483,8 +529,20 @@ export function BuildingPlanView({ catalog }: Props) {
                       strokeDasharray="4 3"
                       opacity={0.5}
                     />
-                    <circle cx={ap.pos.x * PX_PER_M} cy={ap.pos.y * PX_PER_M} r={5} fill="#2563eb">
-                      <title>{`Точка доступа — кабель ~${round1(ap.cableLengthM)} м`}</title>
+                    <circle
+                      cx={ap.pos.x * PX_PER_M}
+                      cy={ap.pos.y * PX_PER_M}
+                      r={7}
+                      fill="#2563eb"
+                      stroke="white"
+                      strokeWidth={1.5}
+                      style={{ pointerEvents: 'all', cursor: 'move' }}
+                      onPointerDown={(e) => onApPointerDown(e, ap.id, ap.pos)}
+                      onPointerMove={onApPointerMove}
+                      onPointerUp={onAnyPointerUp}
+                      onDoubleClick={() => removeAP(ap.id)}
+                    >
+                      <title>{`Точка доступа — кабель ~${round1(ap.cableLengthM)} м. Перетащите, двойной клик — удалить.`}</title>
                     </circle>
                   </g>
                 ))}
