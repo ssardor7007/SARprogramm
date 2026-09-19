@@ -6,9 +6,12 @@ export type CameraTier = 'none' | 'budget' | 'standard' | 'premium'
 
 export interface DesignerInput {
   buildingType: BuildingType
+  /** Площадь всего здания (сумма по всем этажам), м² */
   totalAreaM2: number
   floors: number
   wallMaterial: WallMaterial
+  /** Для гостиниц/апартаментов: номеров на одном этаже — уточняет расчёт точек доступа по коридору */
+  roomsPerFloor: number
   /** Компьютеры, ноутбуки — тяжёлый трафик (видеозвонки, передача файлов, VPN) */
   workstations: number
   /** Телефоны, планшеты и прочие лёгкие онлайн-устройства */
@@ -40,6 +43,14 @@ export const AREA_PER_AP: Record<WallMaterial, number> = {
   concrete: 70,
 }
 
+/** Номеров гостиницы, которые уверенно накрывает одна точка доступа в коридоре — зависит от толщины стен между номерами */
+const ROOMS_PER_AP: Record<WallMaterial, number> = {
+  open: 8,
+  drywall: 6,
+  brick: 5,
+  concrete: 4,
+}
+
 const DEVICE_CAPACITY_PER_AP = 25
 const POE_PORT_HEADROOM = 1.15
 /** Рабочее место (ПК/ноутбук) нагружает Wi-Fi заметно сильнее телефона — учитываем это при выборе уровня точки доступа. */
@@ -64,7 +75,12 @@ export function designNetwork(input: DesignerInput, catalog: Product[]): Designe
   const concurrentDevices = input.workstations + input.mobileDevices
   const areaPerAP = AREA_PER_AP[input.wallMaterial]
   const areaPerFloor = input.totalAreaM2 / Math.max(1, input.floors)
-  const apsPerFloor = Math.max(1, Math.ceil(areaPerFloor / areaPerAP))
+  const apsPerFloorByArea = Math.max(1, Math.ceil(areaPerFloor / areaPerAP))
+
+  const isHotelLike = input.buildingType === 'hotel' || input.buildingType === 'apartment'
+  const apsPerFloorByRooms =
+    isHotelLike && input.roomsPerFloor > 0 ? Math.ceil(input.roomsPerFloor / ROOMS_PER_AP[input.wallMaterial]) : 0
+  const apsPerFloor = Math.max(apsPerFloorByArea, apsPerFloorByRooms)
   let apCount = apsPerFloor * input.floors
 
   const apsByDevices = Math.ceil(concurrentDevices / DEVICE_CAPACITY_PER_AP)
@@ -87,11 +103,15 @@ export function designNetwork(input: DesignerInput, catalog: Product[]): Designe
   const lines: DesignerLine[] = []
 
   if (apProduct) {
+    const byRoomsWins = apsPerFloorByRooms > apsPerFloorByArea
+    const coverageReason = byRoomsWins
+      ? `${input.roomsPerFloor} номеров/этаж ÷ ~${ROOMS_PER_AP[input.wallMaterial]} номеров на точку (стены «${wallMaterialLabel(input.wallMaterial)}»)`
+      : `по покрытию: ${areaPerFloor.toFixed(0)} м²/этаж ÷ ${areaPerAP} м²/точка (стены «${wallMaterialLabel(input.wallMaterial)}»)`
     lines.push({
       role: 'Точки доступа Wi-Fi (в помещении)',
       product: apProduct,
       qty: apCount,
-      reason: `${input.floors} эт. × ~${apsPerFloor} AP/этаж по покрытию (${areaPerAP} м²/точка для стен «${wallMaterialLabel(input.wallMaterial)}»), с учётом ${input.workstations} рабочих мест и ${input.mobileDevices} мобильных устройств`,
+      reason: `${input.floors} эт. × ~${apsPerFloor} AP/этаж — ${coverageReason}, с учётом ${input.workstations} рабочих мест и ${input.mobileDevices} мобильных устройств`,
     })
   } else {
     warnings.push('В каталоге нет подходящей точки доступа — добавьте товары категории «Точка доступа» в «Каталог».')

@@ -32,6 +32,7 @@ export function DesignerView({ catalog }: Props) {
     totalAreaM2: 500,
     floors: 2,
     wallMaterial: 'drywall',
+    roomsPerFloor: 20,
     workstations: 15,
     mobileDevices: 25,
     outdoorCoverage: false,
@@ -76,7 +77,7 @@ export function DesignerView({ catalog }: Props) {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-slate-700">Площадь, м²</label>
+              <label className="block text-sm font-medium text-slate-700">Площадь всего здания, м²</label>
               <input
                 type="number"
                 min={10}
@@ -96,6 +97,27 @@ export function DesignerView({ catalog }: Props) {
               />
             </div>
           </div>
+          <p className="-mt-2 text-xs text-slate-400">
+            Указываете площадь <b>всего здания целиком</b> (сумма по всем этажам) — сейчас это ≈
+            {Math.round(input.totalAreaM2 / Math.max(1, input.floors)).toLocaleString()} м² на один этаж.
+          </p>
+
+          {(input.buildingType === 'hotel' || input.buildingType === 'apartment') && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700">Номеров / квартир на одном этаже</label>
+              <input
+                type="number"
+                min={1}
+                className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                value={input.roomsPerFloor}
+                onChange={(e) => set('roomsPerFloor', Math.max(0, Number(e.target.value)))}
+              />
+              <p className="mt-1 text-xs text-slate-400">
+                У гостиниц много маленьких номеров с несущими стенами между ними — точек доступа обычно нужно больше, чем
+                по одной лишь площади этажа. Берём более осторожную из двух оценок.
+              </p>
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-slate-700">Материал стен / перегородок</label>
@@ -208,9 +230,11 @@ export function DesignerView({ catalog }: Props) {
           </div>
 
           <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">
-            {BUILDING_TYPE_LABELS[input.buildingType]}, {input.totalAreaM2} м², {input.floors} эт. — расчётно нужно{' '}
-            <b>{result.apCount}</b> точек доступа для стабильного покрытия {input.workstations + input.mobileDevices}{' '}
-            одновременных клиентов ({input.workstations} рабочих мест + {input.mobileDevices} мобильных устройств).
+            {BUILDING_TYPE_LABELS[input.buildingType]}, {input.totalAreaM2} м² на всё здание, {input.floors} эт.
+            {(input.buildingType === 'hotel' || input.buildingType === 'apartment') && ` (${input.roomsPerFloor} номеров/этаж)`}
+            {' '}— расчётно нужно <b>{result.apCount}</b> точек доступа для стабильного покрытия{' '}
+            {input.workstations + input.mobileDevices} одновременных клиентов ({input.workstations} рабочих мест +{' '}
+            {input.mobileDevices} мобильных устройств).
           </div>
 
           {result.warnings.length > 0 && (
