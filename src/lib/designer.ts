@@ -1,7 +1,9 @@
-import type { PriceCategory, Product } from '../types'
+import { CATEGORY_LABELS, type Brand, type PriceCategory, type Product } from '../types'
 
 export type WallMaterial = 'open' | 'drywall' | 'brick' | 'concrete'
 export type Tier = PriceCategory
+/** 'all' — подбирать лучший вариант по цене среди всех брендов (как раньше); конкретный бренд — держать все три сегмента на его оборудовании, где это возможно. */
+export type BrandFilter = Brand | 'all'
 
 export const TIER_LABELS: Record<Tier, string> = {
   budget: 'Бюджетный',
@@ -35,6 +37,8 @@ export interface DesignerInput {
   cameraTier: CameraTier
   cameraCount: number
   cameraBrand: 'Hikvision' | 'Dahua'
+  /** Если выбран конкретный бренд — все три сегмента подбираются на его оборудовании (там, где оно есть в каталоге). */
+  preferredBrand: BrandFilter
 }
 
 export interface DesignerLine {
@@ -102,6 +106,38 @@ export function pickTierProduct(catalog: Product[], category: Product['category'
   return [...pool].sort((a, b) => a.priceUSD - b.priceUSD)[0]
 }
 
+interface BrandPick {
+  product?: Product
+  note?: string
+}
+
+/**
+ * То же самое, что pickTierProduct, но с учётом выбора конкретного бренда клиентом.
+ * Сначала ищет модель нужного сегмента именно у этого бренда; если у бренда нет модели
+ * ровно этого сегмента — берёт ближайшую по цене модель того же бренда; если у бренда
+ * вообще нет товаров этой категории — откатывается на обычный кросс-брендовый подбор
+ * и явно предупреждает, что бренд пришлось заменить.
+ */
+function pickForTierAndBrand(catalog: Product[], category: Product['category'], tier: Tier, preferredBrand: BrandFilter): BrandPick {
+  if (preferredBrand === 'all') {
+    return { product: pickTierProduct(catalog, category, tier) }
+  }
+  const brandPool = catalog.filter((p) => p.category === category && p.brand === preferredBrand)
+  if (brandPool.length === 0) {
+    return {
+      product: pickTierProduct(catalog, category, tier),
+      note: `У бренда ${preferredBrand} нет позиции «${CATEGORY_LABELS[category]}» в каталоге — подобран аналог другого бренда.`,
+    }
+  }
+  const exact = brandPool.filter((p) => p.priceCategory === tier).sort((a, b) => a.priceUSD - b.priceUSD)
+  if (exact.length > 0) return { product: exact[0] }
+  const sorted = [...brandPool].sort((a, b) => a.priceUSD - b.priceUSD)
+  return {
+    product: sorted[Math.floor(sorted.length / 2)],
+    note: `У бренда ${preferredBrand} нет модели уровня «${TIER_LABELS[tier]}» для «${CATEGORY_LABELS[category]}» — предложена ближайшая по цене модель этого же бренда.`,
+  }
+}
+
 /** Сколько устройств уверенно обслуживает одна точка доступа в этом сегменте — бюджетные модели слабее, премиум держит больше клиентов. */
 const DEVICE_CAPACITY_BY_TIER: Record<Tier, number> = { budget: 15, mid: 25, premium: 45 }
 /** Порог одновременных пользователей, после которого роутер этого сегмента уже работает на пределе. */
@@ -141,9 +177,10 @@ function designTier(input: DesignerInput, catalog: Product[], tier: Tier): TierR
 
   const outdoorAPs = input.outdoorCoverage ? Math.max(2, Math.ceil(input.floors / 2)) : 0
 
-  const apProduct = pickTierProduct(catalog, 'ap', tier)
+  const { product: apProduct, note: apNote } = pickForTierAndBrand(catalog, 'ap', tier, input.preferredBrand)
   const lines: DesignerLine[] = []
   const brands = new Set<string>()
+  if (apNote) warnings.push(apNote)
 
   if (apProduct) {
     brands.add(apProduct.brand)
@@ -161,16 +198,13 @@ function designTier(input: DesignerInput, catalog: Product[], tier: Tier): TierR
     warnings.push(`В сегменте «${TIER_LABELS[tier]}» нет точки доступа в каталоге.`)
   }
 
-  if (outdoorAPs > 0) {
-    const outdoorProduct = pickTierProduct(catalog, 'ap', tier)
-    if (outdoorProduct) {
-      lines.push({
-        role: 'Точки доступа для улицы/двора',
-        product: outdoorProduct,
-        qty: outdoorAPs,
-        reason: 'Ориентировочно, для покрытия прилегающей территории',
-      })
-    }
+  if (outdoorAPs > 0 && apProduct) {
+    lines.push({
+      role: 'Точки доступа для улицы/двора',
+      product: apProduct,
+      qty: outdoorAPs,
+      reason: 'Ориентировочно, для покрытия прилегающей территории',
+    })
   }
 
   const cameraCount = input.cameraTier === 'none' ? 0 : input.cameraCount
@@ -178,7 +212,8 @@ function designTier(input: DesignerInput, catalog: Product[], tier: Tier): TierR
 
   if (poePortsNeeded > 0) {
     const swCount = poePortsNeeded <= 8 ? 1 : Math.ceil(poePortsNeeded / 24)
-    const sw = pickTierProduct(catalog, 'switch', tier)
+    const { product: sw, note: swNote } = pickForTierAndBrand(catalog, 'switch', tier, input.preferredBrand)
+    if (swNote) warnings.push(swNote)
     if (sw) {
       brands.add(sw.brand)
       lines.push({
@@ -192,7 +227,8 @@ function designTier(input: DesignerInput, catalog: Product[], tier: Tier): TierR
     }
   }
 
-  const router = pickTierProduct(catalog, 'router', tier)
+  const { product: router, note: routerNote } = pickForTierAndBrand(catalog, 'router', tier, input.preferredBrand)
+  if (routerNote) warnings.push(routerNote)
   if (router) {
     brands.add(router.brand)
     lines.push({

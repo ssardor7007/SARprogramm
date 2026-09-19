@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import type { Product } from '../types'
+import { BRANDS, type Product } from '../types'
 import {
   BUILDING_TYPE_LABELS,
   cameraTierLabel,
   designNetworkTiers,
   wallMaterialLabel,
+  type BrandFilter,
   type BuildingType,
   type CameraTier,
   type DesignerInput,
@@ -21,6 +22,7 @@ interface Props {
 }
 
 const WALL_OPTIONS: WallMaterial[] = ['open', 'drywall', 'brick', 'concrete']
+const BRAND_OPTIONS: BrandFilter[] = ['all', ...BRANDS]
 const CAMERA_TIERS: CameraTier[] = ['none', 'budget', 'standard', 'premium']
 const TIER_ORDER: Tier[] = ['budget', 'mid', 'premium']
 const TIER_ACCENT: Record<Tier, { border: string; badge: string; ring: string }> = {
@@ -42,6 +44,7 @@ export function DesignerView({ catalog, onSentToRack }: Props) {
     cameraTier: SHOW_VIDEO_SURVEILLANCE ? 'standard' : 'none',
     cameraCount: 8,
     cameraBrand: 'Hikvision',
+    preferredBrand: 'all',
   })
 
   const result = designNetworkTiers(input, catalog)
@@ -184,6 +187,33 @@ export function DesignerView({ catalog, onSentToRack }: Props) {
             />
             Нужна Wi-Fi зона на улице (двор, парковка, терраса)
           </label>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700">Бренд оборудования</label>
+            <p className="mt-0.5 text-xs text-slate-400">
+              По умолчанию подбираем лучшую цену среди всех брендов. Выберите конкретный бренд — и все три варианта
+              (бюджетный/оптимальный/премиум) будут собраны на его оборудовании, где это есть в каталоге.
+            </p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {BRAND_OPTIONS.map((b) => {
+                const active = input.preferredBrand === b
+                return (
+                  <button
+                    key={b}
+                    type="button"
+                    onClick={() => set('preferredBrand', b)}
+                    className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                      active
+                        ? 'border-blue-500 bg-blue-500 text-white'
+                        : 'border-slate-300 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    {b === 'all' ? 'Все бренды (авто)' : b}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
 
           {SHOW_VIDEO_SURVEILLANCE && (
             <>
