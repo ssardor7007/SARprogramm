@@ -32,7 +32,8 @@ export function DesignerView({ catalog }: Props) {
     totalAreaM2: 500,
     floors: 2,
     wallMaterial: 'drywall',
-    concurrentDevices: 40,
+    workstations: 15,
+    mobileDevices: 25,
     outdoorCoverage: false,
     cameraTier: SHOW_VIDEO_SURVEILLANCE ? 'standard' : 'none',
     cameraCount: 8,
@@ -112,18 +113,35 @@ export function DesignerView({ catalog }: Props) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700">
-              Одновременных Wi-Fi клиентов: {input.concurrentDevices}
-            </label>
-            <input
-              type="range"
-              min={5}
-              max={400}
-              step={5}
-              className="mt-1 w-full"
-              value={input.concurrentDevices}
-              onChange={(e) => set('concurrentDevices', Number(e.target.value))}
-            />
+            <label className="block text-sm font-medium text-slate-700">Wi-Fi клиенты по типу устройств</label>
+            <p className="mt-0.5 text-xs text-slate-400">
+              Компьютеры и ноутбуки грузят сеть сильнее (видеозвонки, VPN, файлы) — учитываем это отдельно от телефонов.
+            </p>
+            <div className="mt-2 grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs text-slate-500">Рабочие места (ПК, ноутбуки)</label>
+                <input
+                  type="number"
+                  min={0}
+                  className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                  value={input.workstations}
+                  onChange={(e) => set('workstations', Math.max(0, Number(e.target.value)))}
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-500">Телефоны и др. устройства</label>
+                <input
+                  type="number"
+                  min={0}
+                  className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                  value={input.mobileDevices}
+                  onChange={(e) => set('mobileDevices', Math.max(0, Number(e.target.value)))}
+                />
+              </div>
+            </div>
+            <p className="mt-1 text-xs text-slate-500">
+              Итого одновременных клиентов: {input.workstations + input.mobileDevices}
+            </p>
           </div>
 
           <label className="flex items-center gap-2 text-sm text-slate-700">
@@ -191,8 +209,8 @@ export function DesignerView({ catalog }: Props) {
 
           <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">
             {BUILDING_TYPE_LABELS[input.buildingType]}, {input.totalAreaM2} м², {input.floors} эт. — расчётно нужно{' '}
-            <b>{result.apCount}</b> точек доступа для стабильного покрытия и {input.concurrentDevices} одновременных
-            клиентов.
+            <b>{result.apCount}</b> точек доступа для стабильного покрытия {input.workstations + input.mobileDevices}{' '}
+            одновременных клиентов ({input.workstations} рабочих мест + {input.mobileDevices} мобильных устройств).
           </div>
 
           {result.warnings.length > 0 && (

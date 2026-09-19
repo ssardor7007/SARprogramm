@@ -9,7 +9,10 @@ export interface DesignerInput {
   totalAreaM2: number
   floors: number
   wallMaterial: WallMaterial
-  concurrentDevices: number
+  /** Компьютеры, ноутбуки — тяжёлый трафик (видеозвонки, передача файлов, VPN) */
+  workstations: number
+  /** Телефоны, планшеты и прочие лёгкие онлайн-устройства */
+  mobileDevices: number
   outdoorCoverage: boolean
   cameraTier: CameraTier
   cameraCount: number
@@ -39,6 +42,8 @@ const AREA_PER_AP: Record<WallMaterial, number> = {
 
 const DEVICE_CAPACITY_PER_AP = 25
 const POE_PORT_HEADROOM = 1.15
+/** Рабочее место (ПК/ноутбук) нагружает Wi-Fi заметно сильнее телефона — учитываем это при выборе уровня точки доступа. */
+const WORKSTATION_LOAD_WEIGHT = 1.6
 
 /**
  * Ищет товар по id, а если он был удалён/переименован в каталоге — берёт
@@ -56,23 +61,26 @@ function findProduct(catalog: Product[], id: string, category: Product['category
 
 export function designNetwork(input: DesignerInput, catalog: Product[]): DesignerResult {
   const warnings: string[] = []
+  const concurrentDevices = input.workstations + input.mobileDevices
   const areaPerAP = AREA_PER_AP[input.wallMaterial]
   const areaPerFloor = input.totalAreaM2 / Math.max(1, input.floors)
   const apsPerFloor = Math.max(1, Math.ceil(areaPerFloor / areaPerAP))
   let apCount = apsPerFloor * input.floors
 
-  const apsByDevices = Math.ceil(input.concurrentDevices / DEVICE_CAPACITY_PER_AP)
+  const apsByDevices = Math.ceil(concurrentDevices / DEVICE_CAPACITY_PER_AP)
   if (apsByDevices > apCount) {
     apCount = apsByDevices
   }
 
   const outdoorAPs = input.outdoorCoverage ? Math.max(2, Math.ceil(input.floors / 2)) : 0
 
-  // Выбор модели точки доступа по плотности клиентов и требуемой площади на AP
-  const devicesPerAP = input.concurrentDevices / Math.max(1, apCount)
+  // Выбор модели точки доступа: площадь/материал стен + плотность клиентов,
+  // где рабочие места (видеозвонки, VPN, передача файлов) весят тяжелее телефонов
+  const weightedLoad = input.workstations * WORKSTATION_LOAD_WEIGHT + input.mobileDevices
+  const loadPerAP = weightedLoad / Math.max(1, apCount)
   let apTier: 'budget' | 'mid' | 'premium' = 'budget'
-  if (devicesPerAP > 25 || areaPerAP >= 150) apTier = 'premium'
-  else if (devicesPerAP > 12 || input.wallMaterial !== 'open') apTier = 'mid'
+  if (loadPerAP > 25 || areaPerAP >= 150) apTier = 'premium'
+  else if (loadPerAP > 12 || input.wallMaterial !== 'open') apTier = 'mid'
   const apIdByTier = { budget: 'tpl-eap225', mid: 'tpl-eap670', premium: 'tpl-eap660-hd' } as const
   const apProduct = findProduct(catalog, apIdByTier[apTier], 'ap', apTier)
 
@@ -83,7 +91,7 @@ export function designNetwork(input: DesignerInput, catalog: Product[]): Designe
       role: 'Точки доступа Wi-Fi (в помещении)',
       product: apProduct,
       qty: apCount,
-      reason: `${input.floors} эт. × ~${apsPerFloor} AP/этаж по покрытию (${areaPerAP} м²/точка для стен «${wallMaterialLabel(input.wallMaterial)}»), с учётом ${input.concurrentDevices} одновременных клиентов`,
+      reason: `${input.floors} эт. × ~${apsPerFloor} AP/этаж по покрытию (${areaPerAP} м²/точка для стен «${wallMaterialLabel(input.wallMaterial)}»), с учётом ${input.workstations} рабочих мест и ${input.mobileDevices} мобильных устройств`,
     })
   } else {
     warnings.push('В каталоге нет подходящей точки доступа — добавьте товары категории «Точка доступа» в «Каталог».')
@@ -126,10 +134,10 @@ export function designNetwork(input: DesignerInput, catalog: Product[]): Designe
   // Роутер/шлюз по количеству пользователей
   let routerTier: 'budget' | 'mid' | 'premium' = 'budget'
   let routerId = 'tpl-er605'
-  if (input.concurrentDevices > 150) {
+  if (concurrentDevices > 150) {
     routerTier = 'premium'
     routerId = 'tpl-er8411'
-  } else if (input.concurrentDevices > 50) {
+  } else if (concurrentDevices > 50) {
     routerTier = 'mid'
     routerId = 'tpl-er7206'
   }
@@ -139,7 +147,7 @@ export function designNetwork(input: DesignerInput, catalog: Product[]): Designe
       role: 'Роутер / шлюз',
       product: router,
       qty: 1,
-      reason: `Расчёт на ~${input.concurrentDevices} одновременных пользователей сети`,
+      reason: `Расчёт на ~${concurrentDevices} одновременных пользователей сети (${input.workstations} рабочих мест + ${input.mobileDevices} мобильных)`,
     })
   }
 
