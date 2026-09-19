@@ -1,6 +1,13 @@
-import type { Product } from '../types'
+import type { PriceCategory, Product } from '../types'
 
 export type WallMaterial = 'open' | 'drywall' | 'brick' | 'concrete'
+export type Tier = PriceCategory
+
+export const TIER_LABELS: Record<Tier, string> = {
+  budget: 'Бюджетный',
+  mid: 'Оптимальный',
+  premium: 'Премиум',
+}
 export type BuildingType = 'office' | 'retail' | 'warehouse' | 'hotel' | 'apartment'
 export type CameraTier = 'none' | 'budget' | 'standard' | 'premium'
 
@@ -76,6 +83,205 @@ export function findProduct(catalog: Product[], id: string, category: Product['c
   const tplCategory = catalog.filter((p) => p.brand === 'TP-Link' && p.category === category)
   const sameTier = tplCategory.find((p) => p.priceCategory === tier)
   return sameTier ?? tplCategory[0]
+}
+
+/**
+ * Подбирает товар нужной категории и ценового сегмента среди ВСЕХ брендов
+ * площадки (не только TP-Link) — так бюджетный, оптимальный и премиум
+ * пакеты естественно расходятся по разным брендам, как в реальной практике
+ * рынка. В премиум-сегменте при наличии предпочитаем Ubiquiti — это
+ * узнаваемый премиальный бренд у клиентов.
+ */
+export function pickTierProduct(catalog: Product[], category: Product['category'], tier: Tier): Product | undefined {
+  const pool = catalog.filter((p) => p.category === category && p.priceCategory === tier)
+  if (pool.length === 0) return undefined
+  if (tier === 'premium') {
+    const ubiquiti = pool.filter((p) => p.brand === 'Ubiquiti (UniFi)').sort((a, b) => a.priceUSD - b.priceUSD)
+    if (ubiquiti.length > 0) return ubiquiti[0]
+  }
+  return [...pool].sort((a, b) => a.priceUSD - b.priceUSD)[0]
+}
+
+/** Сколько устройств уверенно обслуживает одна точка доступа в этом сегменте — бюджетные модели слабее, премиум держит больше клиентов. */
+const DEVICE_CAPACITY_BY_TIER: Record<Tier, number> = { budget: 15, mid: 25, premium: 45 }
+/** Порог одновременных пользователей, после которого роутер этого сегмента уже работает на пределе. */
+const ROUTER_LOAD_CAP: Record<Tier, number> = { budget: 40, mid: 150, premium: Infinity }
+
+export interface TierResult extends DesignerResult {
+  tier: Tier
+  tierLabel: string
+  /** Бренды точек доступа/коммутатора/роутера, вошедшие в этот пакет */
+  brands: string[]
+  /** Метрика для сравнения пакетов между собой: цена на одного одновременного клиента */
+  usdPerClient: number
+}
+
+export interface DesignerTiersResult {
+  tiers: TierResult[]
+  recommendedTier: Tier
+  recommendationReason: string
+  concurrentDevices: number
+}
+
+function designTier(input: DesignerInput, catalog: Product[], tier: Tier): TierResult {
+  const warnings: string[] = []
+  const concurrentDevices = input.workstations + input.mobileDevices
+  const areaPerAP = AREA_PER_AP[input.wallMaterial]
+  const areaPerFloor = input.totalAreaM2 / Math.max(1, input.floors)
+  const apsPerFloorByArea = Math.max(1, Math.ceil(areaPerFloor / areaPerAP))
+
+  const isHotelLike = input.buildingType === 'hotel' || input.buildingType === 'apartment'
+  const apsPerFloorByRooms =
+    isHotelLike && input.roomsPerFloor > 0 ? Math.ceil(input.roomsPerFloor / ROOMS_PER_AP[input.wallMaterial]) : 0
+  const apsPerFloor = Math.max(apsPerFloorByArea, apsPerFloorByRooms)
+  let apCount = apsPerFloor * input.floors
+
+  const apsByDevices = Math.ceil(concurrentDevices / DEVICE_CAPACITY_BY_TIER[tier])
+  if (apsByDevices > apCount) apCount = apsByDevices
+
+  const outdoorAPs = input.outdoorCoverage ? Math.max(2, Math.ceil(input.floors / 2)) : 0
+
+  const apProduct = pickTierProduct(catalog, 'ap', tier)
+  const lines: DesignerLine[] = []
+  const brands = new Set<string>()
+
+  if (apProduct) {
+    brands.add(apProduct.brand)
+    const byRoomsWins = apsPerFloorByRooms > apsPerFloorByArea
+    const coverageReason = byRoomsWins
+      ? `${input.roomsPerFloor} номеров/этаж ÷ ~${ROOMS_PER_AP[input.wallMaterial]} номеров на точку`
+      : `${areaPerFloor.toFixed(0)} м²/этаж ÷ ${areaPerAP} м²/точка`
+    lines.push({
+      role: 'Точки доступа Wi-Fi',
+      product: apProduct,
+      qty: apCount,
+      reason: `${input.floors} эт. × ~${apsPerFloor} AP/этаж (${coverageReason}) — до ${DEVICE_CAPACITY_BY_TIER[tier]} устройств на точку в этом сегменте, всего ${concurrentDevices} одновременных клиентов`,
+    })
+  } else {
+    warnings.push(`В сегменте «${TIER_LABELS[tier]}» нет точки доступа в каталоге.`)
+  }
+
+  if (outdoorAPs > 0) {
+    const outdoorProduct = pickTierProduct(catalog, 'ap', tier)
+    if (outdoorProduct) {
+      lines.push({
+        role: 'Точки доступа для улицы/двора',
+        product: outdoorProduct,
+        qty: outdoorAPs,
+        reason: 'Ориентировочно, для покрытия прилегающей территории',
+      })
+    }
+  }
+
+  const cameraCount = input.cameraTier === 'none' ? 0 : input.cameraCount
+  const poePortsNeeded = Math.ceil((apCount + outdoorAPs + cameraCount) * POE_PORT_HEADROOM)
+
+  if (poePortsNeeded > 0) {
+    const swCount = poePortsNeeded <= 8 ? 1 : Math.ceil(poePortsNeeded / 24)
+    const sw = pickTierProduct(catalog, 'switch', tier)
+    if (sw) {
+      brands.add(sw.brand)
+      lines.push({
+        role: 'PoE-коммутатор',
+        product: sw,
+        qty: swCount,
+        reason: `Нужно ~${poePortsNeeded} PoE-портов с запасом`,
+      })
+    } else {
+      warnings.push(`В сегменте «${TIER_LABELS[tier]}» нет коммутатора в каталоге.`)
+    }
+  }
+
+  const router = pickTierProduct(catalog, 'router', tier)
+  if (router) {
+    brands.add(router.brand)
+    lines.push({
+      role: 'Роутер / шлюз',
+      product: router,
+      qty: 1,
+      reason: `Расчёт на ~${concurrentDevices} одновременных пользователей сети`,
+    })
+    if (concurrentDevices > ROUTER_LOAD_CAP[tier]) {
+      warnings.push(
+        `При ~${concurrentDevices} одновременных клиентах роутер сегмента «${TIER_LABELS[tier]}» работает на пределе — возможны просадки в пиковой нагрузке.`,
+      )
+    }
+  } else {
+    warnings.push(`В сегменте «${TIER_LABELS[tier]}» нет роутера в каталоге.`)
+  }
+
+  if (apProduct?.brand === 'TP-Link' && apCount + outdoorAPs > 1) {
+    const controller = findProduct(catalog, 'tpl-oc200', 'other', 'budget')
+    if (controller) {
+      lines.push({
+        role: 'Контроллер сети (Omada)',
+        product: controller,
+        qty: 1,
+        reason: 'Централизованная настройка и роуминг между точками доступа',
+      })
+    }
+  }
+
+  if (input.cameraTier !== 'none' && cameraCount > 0) {
+    const cameraTierMap: Record<Exclude<CameraTier, 'none'>, Tier> = { budget: 'budget', standard: 'mid', premium: 'premium' }
+    const priceTier = cameraTierMap[input.cameraTier]
+    const cameraPool = catalog.filter((p) => p.category === 'camera' && p.brand === input.cameraBrand)
+    const camera = cameraPool.find((p) => p.priceCategory === priceTier) ?? cameraPool[0]
+    if (camera) {
+      brands.add(camera.brand)
+      lines.push({ role: 'IP-камеры', product: camera, qty: cameraCount, reason: `Бренд ${input.cameraBrand}, уровень «${cameraTierLabel(input.cameraTier)}»` })
+    }
+    const nvrPool = catalog.filter((p) => p.category === 'nvr' && p.brand === input.cameraBrand)
+    const nvr = nvrPool.find((p) => {
+      const channels = parseInt(p.specs['Каналы'] ?? '', 10)
+      return !Number.isNaN(channels) && channels >= cameraCount
+    }) ?? nvrPool.sort((a, b) => b.priceUSD - a.priceUSD)[0]
+    if (nvr) lines.push({ role: 'Видеорегистратор (NVR)', product: nvr, qty: 1, reason: `Нужно не менее ${cameraCount} каналов` })
+  }
+
+  const totalUSD = lines.reduce((sum, l) => sum + (l.product ? l.product.priceUSD * l.qty : 0), 0)
+  const totalApCount = apCount + outdoorAPs
+
+  return {
+    tier,
+    tierLabel: TIER_LABELS[tier],
+    lines,
+    apCount: totalApCount,
+    warnings,
+    totalUSD,
+    brands: Array.from(brands),
+    usdPerClient: concurrentDevices > 0 ? totalUSD / concurrentDevices : totalUSD,
+  }
+}
+
+/**
+ * Считает объект сразу в трёх сегментах (бюджет/оптимум/премиум) на разных
+ * брендах и подсказывает, какой вариант оптимален под введённый трафик —
+ * как просит монтажник: ввёл объект и нагрузку, получил три готовых
+ * коммерческих предложения и рекомендацию.
+ */
+export function designNetworkTiers(input: DesignerInput, catalog: Product[]): DesignerTiersResult {
+  const concurrentDevices = input.workstations + input.mobileDevices
+  const tiers: TierResult[] = (['budget', 'mid', 'premium'] as Tier[]).map((tier) => designTier(input, catalog, tier))
+  const [budgetTier, midTier, premiumTier] = tiers
+
+  let recommendedTier: Tier = 'mid'
+  let recommendationReason = `При ~${concurrentDevices} одновременных клиентах оптимальный сегмент даёт лучший баланс цены и запаса по нагрузке.`
+
+  if (concurrentDevices <= 20) {
+    recommendedTier = 'budget'
+    recommendationReason = `Всего ~${concurrentDevices} одновременных клиентов — бюджетный сегмент (${budgetTier.brands.join(', ')}) полностью справится, не переплачивайте.`
+  } else if (concurrentDevices > 80) {
+    recommendedTier = 'premium'
+    recommendationReason = `При ~${concurrentDevices} одновременных клиентах нужен запас по стабильности — премиум-сегмент (${premiumTier.brands.join(', ')}) держит нагрузку с запасом.`
+  } else if (budgetTier.apCount > premiumTier.apCount * 1.5 && midTier.totalUSD < budgetTier.totalUSD * 1.3) {
+    recommendedTier = 'mid'
+    recommendationReason = `Бюджетному сегменту нужно ${budgetTier.apCount} точек доступа против ${midTier.apCount} в оптимальном — при похожей цене оптимальный сегмент (${midTier.brands.join(', ')}) выгоднее и проще в обслуживании.`
+  } else {
+    recommendationReason = `При ~${concurrentDevices} одновременных клиентах оптимальный сегмент (${midTier.brands.join(', ')}) — лучшее сочетание цены и запаса по нагрузке.`
+  }
+
+  return { tiers, recommendedTier, recommendationReason, concurrentDevices }
 }
 
 export function designNetwork(input: DesignerInput, catalog: Product[]): DesignerResult {

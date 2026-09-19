@@ -3,11 +3,12 @@ import type { Product } from '../types'
 import {
   BUILDING_TYPE_LABELS,
   cameraTierLabel,
-  designNetwork,
+  designNetworkTiers,
   wallMaterialLabel,
   type BuildingType,
   type CameraTier,
   type DesignerInput,
+  type Tier,
   type WallMaterial,
 } from '../lib/designer'
 import { SHOW_VIDEO_SURVEILLANCE } from '../lib/features'
@@ -18,6 +19,12 @@ interface Props {
 
 const WALL_OPTIONS: WallMaterial[] = ['open', 'drywall', 'brick', 'concrete']
 const CAMERA_TIERS: CameraTier[] = ['none', 'budget', 'standard', 'premium']
+const TIER_ORDER: Tier[] = ['budget', 'mid', 'premium']
+const TIER_ACCENT: Record<Tier, { border: string; badge: string; ring: string }> = {
+  budget: { border: 'border-slate-200', badge: 'bg-slate-100 text-slate-600', ring: '' },
+  mid: { border: 'border-blue-200', badge: 'bg-blue-100 text-blue-700', ring: '' },
+  premium: { border: 'border-violet-200', badge: 'bg-violet-100 text-violet-700', ring: '' },
+}
 
 export function DesignerView({ catalog }: Props) {
   const [input, setInput] = useState<DesignerInput>({
@@ -34,7 +41,7 @@ export function DesignerView({ catalog }: Props) {
     cameraBrand: 'Hikvision',
   })
 
-  const result = designNetwork(input, catalog)
+  const result = designNetworkTiers(input, catalog)
 
   function set<K extends keyof DesignerInput>(key: K, value: DesignerInput[K]) {
     setInput((prev) => ({ ...prev, [key]: value }))
@@ -45,9 +52,9 @@ export function DesignerView({ catalog }: Props) {
       <div className="mb-4 no-print">
         <h1 className="text-xl font-semibold text-slate-900">Подбор оборудования по объекту</h1>
         <p className="text-sm text-slate-500">
-          Упрощённый аналог TP-Link Omada Designer: введите параметры здания — получите ориентировочный набор
-          точек доступа, коммутаторов и роутера. Это оценка «на глаз», не замена радиообследования для сложных
-          объектов.
+          Введите параметры объекта и ожидаемую нагрузку — получите сразу три готовых варианта (бюджетный,
+          оптимальный, премиум) на разных брендах, с рекомендацией, какой лучше решает задачу клиента. Это
+          оценка «на глаз», не замена радиообследования для сложных объектов.
         </p>
       </div>
 
@@ -225,52 +232,64 @@ export function DesignerView({ catalog }: Props) {
           <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">
             {BUILDING_TYPE_LABELS[input.buildingType]}, {input.totalAreaM2} м² на всё здание, {input.floors} эт.
             {(input.buildingType === 'hotel' || input.buildingType === 'apartment') && ` (${input.roomsPerFloor} номеров/этаж)`}
-            {' '}— расчётно нужно <b>{result.apCount}</b> точек доступа для стабильного покрытия{' '}
-            {input.workstations + input.mobileDevices} одновременных клиентов ({input.workstations} рабочих мест +{' '}
-            {input.mobileDevices} мобильных устройств).
+            {' '}— {result.concurrentDevices} одновременных клиентов ({input.workstations} рабочих мест +{' '}
+            {input.mobileDevices} мобильных устройств). Ниже — три готовых варианта, чтобы сравнить с клиентом на месте.
           </div>
 
-          {result.warnings.length > 0 && (
-            <div className="mb-4 space-y-1 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-              {result.warnings.map((w, i) => (
-                <div key={i}>⚠ {w}</div>
-              ))}
-            </div>
-          )}
-
-          <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-            <table className="min-w-full divide-y divide-slate-200 text-sm">
-              <thead className="bg-slate-50">
-                <tr>
-                  <th className="px-3 py-2 text-left font-medium text-slate-600">Роль</th>
-                  <th className="px-3 py-2 text-left font-medium text-slate-600">Модель</th>
-                  <th className="px-3 py-2 text-left font-medium text-slate-600">Кол-во</th>
-                  <th className="px-3 py-2 text-left font-medium text-slate-600">Сумма</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {result.lines.map((line, i) => (
-                  <tr key={i}>
-                    <td className="px-3 py-2 align-top text-slate-600">
-                      {line.role}
-                      <div className="text-xs text-slate-400">{line.reason}</div>
-                    </td>
-                    <td className="px-3 py-2 align-top font-medium text-slate-900">
-                      {line.product ? `${line.product.brand} ${line.product.model}` : '—'}
-                    </td>
-                    <td className="px-3 py-2 align-top text-slate-600">{line.qty}</td>
-                    <td className="px-3 py-2 align-top text-slate-900">
-                      {line.product ? `$${(line.product.priceUSD * line.qty).toLocaleString()}` : '—'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
+            <b>Рекомендуем: {result.tiers.find((t) => t.tier === result.recommendedTier)?.tierLabel}.</b>{' '}
+            {result.recommendationReason}
           </div>
 
-          <div className="mt-4 flex items-center justify-between rounded-lg border border-slate-200 bg-white p-4">
-            <span className="text-lg font-semibold text-slate-900">Итого оборудование</span>
-            <span className="text-2xl font-bold text-slate-900">${result.totalUSD.toLocaleString()}</span>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            {TIER_ORDER.map((tier) => {
+              const t = result.tiers.find((r) => r.tier === tier)!
+              const accent = TIER_ACCENT[tier]
+              const isRecommended = tier === result.recommendedTier
+              return (
+                <div
+                  key={tier}
+                  className={`flex flex-col rounded-lg border-2 bg-white p-4 print:break-inside-avoid ${
+                    isRecommended ? 'border-emerald-400 shadow-md' : accent.border
+                  }`}
+                >
+                  <div className="mb-1 flex items-center justify-between">
+                    <span className={`rounded px-2 py-0.5 text-xs font-semibold ${accent.badge}`}>{t.tierLabel}</span>
+                    {isRecommended && (
+                      <span className="rounded bg-emerald-500 px-2 py-0.5 text-xs font-semibold text-white">
+                        Рекомендуем
+                      </span>
+                    )}
+                  </div>
+                  <p className="mb-2 text-xs text-slate-400">{t.brands.join(', ') || '—'}</p>
+
+                  <div className="mb-3 text-2xl font-bold text-slate-900">${t.totalUSD.toLocaleString()}</div>
+                  <p className="mb-3 text-xs text-slate-400">
+                    ≈${t.usdPerClient.toFixed(1)} на одного одновременного клиента
+                  </p>
+
+                  <ul className="mb-3 flex-1 space-y-2 text-sm">
+                    {t.lines.map((line, i) => (
+                      <li key={i} className="border-t border-slate-100 pt-2 first:border-0 first:pt-0">
+                        <div className="font-medium text-slate-900">
+                          {line.product ? `${line.product.brand} ${line.product.model}` : line.role}
+                          {line.qty > 1 ? ` × ${line.qty}` : ''}
+                        </div>
+                        <div className="text-xs text-slate-400">{line.role}</div>
+                      </li>
+                    ))}
+                  </ul>
+
+                  {t.warnings.length > 0 && (
+                    <div className="mb-2 space-y-1 rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+                      {t.warnings.map((w, i) => (
+                        <div key={i}>⚠ {w}</div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
 
           <button

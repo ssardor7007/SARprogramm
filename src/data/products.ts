@@ -1453,7 +1453,7 @@ export const PRODUCTS: Product[] = [
   {
     id: 'tpl-rackmount-kit-13',
     brand: 'TP-Link',
-    category: 'ap',
+    category: 'other',
     model: 'RackMount Kit-13',
     specs: {
       'Характеристики': 'Комплект кронштейнов для монтажа в стойку, винты в комплекте Габаритные размеры: 0.9 × 1.7 × 1.7 дюймов (22 × 43.9 × 42 мм)',
@@ -1469,7 +1469,7 @@ export const PRODUCTS: Product[] = [
   {
     id: 'tpl-rackmount-kit-19',
     brand: 'TP-Link',
-    category: 'ap',
+    category: 'other',
     model: 'RackMount Kit-19',
     specs: {
       'Характеристики': 'Комплект кронштейнов для монтажа в стойку, винты в комплекте Габаритные размеры: 3.7 × 1.7 × 1.6 дюймов (93 × 43.8 × 40 мм)',
@@ -1485,7 +1485,7 @@ export const PRODUCTS: Product[] = [
   {
     id: 'tpl-rackmount-kit-d226',
     brand: 'TP-Link',
-    category: 'ap',
+    category: 'other',
     model: 'RackMount Kit-D226',
     specs: {
       'Характеристики': 'Комплект кронштейнов Omada для монтажа в стойку с болтами РАЗМЕРЫ: 5.1 × 1.7 × 0.6 дюймов (128.5 × 43.8 × 15 мм)',
@@ -2093,7 +2093,7 @@ export const PRODUCTS: Product[] = [
   {
     id: 'wtk-wk-r300-cpe-4lan',
     brand: 'Wi-Tek',
-    category: 'router',
+    category: 'other',
     model: 'WK-R300 CPE репитер 4Lan',
     specs: {
       'Характеристики': 'Complied with 802.11n,wireless speed of to 300Mbps, 4 100Mbps RJ45 LAN ports, provides ample access to wired clients, 2x2 MlMO technology provides smooth Wi-Fi experience, 2x 5dBi External Omni-directional Antennas, Four working modes all in one,(Support Wirelsss Router, Access Point,, Repeater.WISP Mode) caters to multiple networking scenarios, SD-LAN technology provides centralized control, making it easy to, manage your network infrastructure',
@@ -2109,7 +2109,7 @@ export const PRODUCTS: Product[] = [
   {
     id: 'wtk-wk-r1200-cpe-3lan-1200mb',
     brand: 'Wi-Tek',
-    category: 'router',
+    category: 'other',
     model: 'WK-R1200 CPE репитер 3Lan 1200Mb',
     specs: {
       'Характеристики': 'Complied with 802.11ac,wireless speed of to 1200Mbps, 3 100Mbps RJ45 LAN ports, provides ample access to wired clients, 2x2 MlMO technology provides smooth Wi-Fi experience, 4x 5dBi External Omni-directional Antennas, Four working modes all in one,(Support Wirelsss Router, Access, Point, Repeater.WISP Mode) caters to multiple networking scenarios,SD-LAN technology provides centralized control, making it easy to manage your network infrastructure',
@@ -2125,7 +2125,7 @@ export const PRODUCTS: Product[] = [
   {
     id: 'wtk-wk-r1800-cpe-4lan-1800mb',
     brand: 'Wi-Tek',
-    category: 'router',
+    category: 'other',
     model: 'WK-R1800 CPE репитер 4Lan 1800mb',
     specs: {
       'Характеристики': 'AX1800 Wi-Fi 6 router, Speed up to 574Mbps (2.4GHz) + 1200Mbps (5GHz), 1 WAN + 3 LAN Gigabit ports for stable connections, 4×5dBi antennas + Easy Mesh support for wide wireless coverage MTK chipset, 256MB RAM, handles up to 90 users Manage anytime, anywhere with the Wi-Tek App Includes 12V 1A DC adapter',
