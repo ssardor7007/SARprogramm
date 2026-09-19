@@ -33,7 +33,7 @@ export interface DesignerResult {
   totalUSD: number
 }
 
-const AREA_PER_AP: Record<WallMaterial, number> = {
+export const AREA_PER_AP: Record<WallMaterial, number> = {
   open: 150,
   drywall: 120,
   brick: 90,
@@ -51,7 +51,7 @@ const WORKSTATION_LOAD_WEIGHT = 1.6
  * держится бренда TP-Link, чтобы предложение оставалось единой линейкой
  * Omada, а не миксом случайных брендов.
  */
-function findProduct(catalog: Product[], id: string, category: Product['category'], tier: 'budget' | 'mid' | 'premium') {
+export function findProduct(catalog: Product[], id: string, category: Product['category'], tier: 'budget' | 'mid' | 'premium') {
   const byId = catalog.find((p) => p.id === id)
   if (byId) return byId
   const tplCategory = catalog.filter((p) => p.brand === 'TP-Link' && p.category === category)

@@ -32,6 +32,19 @@ export function CompetitorsIcon() {
   )
 }
 
+export function PlanIcon() {
+  return (
+    <svg viewBox="0 0 24 24" {...common}>
+      <rect x="3" y="3" width="18" height="18" rx="1" />
+      <path d="M3 9h8M9 9v12" />
+      <circle cx="6" cy="6" r="0.7" fill="currentColor" stroke="none" />
+      <circle cx="15" cy="14" r="0.7" fill="currentColor" stroke="none" />
+      <circle cx="18" cy="18" r="0.7" fill="currentColor" stroke="none" />
+      <path d="M6 6 15 14M15 14 18 18" strokeDasharray="1.5 1.5" />
+    </svg>
+  )
+}
+
 export function RackIcon() {
   return (
     <svg viewBox="0 0 24 24" {...common}>

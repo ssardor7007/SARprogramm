@@ -1,17 +1,19 @@
 import { useState, type ComponentType } from 'react'
+import { BuildingPlanView } from './components/BuildingPlanView'
 import { CatalogView } from './components/CatalogView'
 import { DesignerView } from './components/DesignerView'
-import { CatalogIcon, DesignerIcon, RackIcon } from './components/NavIcons'
+import { CatalogIcon, DesignerIcon, PlanIcon, RackIcon } from './components/NavIcons'
 import { RackDesignerView } from './components/RackDesignerView'
 import { PRODUCTS } from './data/products'
 import { brandColor } from './lib/brandTheme'
 import { visibleBrands } from './lib/features'
 import { usePersistedList } from './lib/storage'
 
-type Tab = 'catalog' | 'designer' | 'rack'
+type Tab = 'catalog' | 'designer' | 'plan' | 'rack'
 
 const TABS: { id: Tab; label: string; icon: ComponentType }[] = [
   { id: 'designer', label: 'Подбор по объекту', icon: DesignerIcon },
+  { id: 'plan', label: 'План здания', icon: PlanIcon },
   { id: 'rack', label: 'Стойка', icon: RackIcon },
   { id: 'catalog', label: 'Каталог', icon: CatalogIcon },
 ]
@@ -81,6 +83,7 @@ function App() {
 
       <main className="mx-auto max-w-6xl px-4 py-6 print:max-w-none print:px-0">
         {tab === 'designer' && <DesignerView catalog={catalog.items} />}
+        {tab === 'plan' && <BuildingPlanView catalog={catalog.items} />}
         {tab === 'rack' && <RackDesignerView catalog={catalog.items} />}
         {tab === 'catalog' && (
           <CatalogView

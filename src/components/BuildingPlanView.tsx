@@ -1,0 +1,493 @@
+import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import type { Product } from '../types'
+import { planBuilding, wallMaterialColor, type BuildingPlan, type Floor, type Room } from '../lib/buildingPlan'
+import { wallMaterialLabel, type WallMaterial } from '../lib/designer'
+import { genId, usePersistedState } from '../lib/storage'
+
+interface Props {
+  catalog: Product[]
+}
+
+const PX_PER_M = 24
+const CANVAS_W_M = 40
+const CANVAS_H_M = 24
+const CANVAS_W_PX = CANVAS_W_M * PX_PER_M
+const CANVAS_H_PX = CANVAS_H_M * PX_PER_M
+const MATERIALS: WallMaterial[] = ['open', 'drywall', 'brick', 'concrete']
+
+function round1(v: number) {
+  return Math.round(v * 10) / 10
+}
+
+function clamp(v: number, min: number, max: number) {
+  return Math.min(Math.max(v, min), max)
+}
+
+function defaultPlan(): BuildingPlan {
+  const floorId = genId('floor')
+  return {
+    floors: [
+      {
+        id: floorId,
+        name: 'Этаж 1',
+        heightM: 3.2,
+        rooms: [],
+        switchPoint: { x: CANVAS_W_M / 2, y: CANVAS_H_M / 2 },
+      },
+    ],
+    serverFloorId: floorId,
+  }
+}
+
+type DragState =
+  | { kind: 'room'; roomId: string; startClientX: number; startClientY: number; startX: number; startY: number; w: number; h: number }
+  | { kind: 'resize'; roomId: string; startClientX: number; startClientY: number; x: number; y: number; startW: number; startH: number }
+  | { kind: 'switch'; startClientX: number; startClientY: number; startX: number; startY: number }
+
+export function BuildingPlanView({ catalog }: Props) {
+  const [plan, setPlan] = usePersistedState<BuildingPlan>('building-plan', defaultPlan())
+  const [activeFloorId, setActiveFloorId] = useState(plan.floors[0]?.id)
+  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null)
+  const [drawRect, setDrawRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
+  const canvasRef = useRef<HTMLDivElement>(null)
+  const dragRef = useRef<DragState | null>(null)
+  const drawStartRef = useRef<{ x: number; y: number } | null>(null)
+
+  const activeFloor = plan.floors.find((f) => f.id === activeFloorId) ?? plan.floors[0]
+  const result = planBuilding(plan, catalog)
+  const activeFloorResult = result.perFloor.find((f) => f.floor.id === activeFloor.id)
+
+  function updateFloor(floorId: string, updater: (f: Floor) => Floor) {
+    setPlan((prev) => ({ ...prev, floors: prev.floors.map((f) => (f.id === floorId ? updater(f) : f)) }))
+  }
+
+  function updateRoom(roomId: string, updater: (r: Room) => Room) {
+    updateFloor(activeFloor.id, (f) => ({ ...f, rooms: f.rooms.map((r) => (r.id === roomId ? updater(r) : r)) }))
+  }
+
+  function removeRoom(roomId: string) {
+    updateFloor(activeFloor.id, (f) => ({ ...f, rooms: f.rooms.filter((r) => r.id !== roomId) }))
+    setSelectedRoomId(null)
+  }
+
+  function addFloor() {
+    const floor: Floor = {
+      id: genId('floor'),
+      name: `Этаж ${plan.floors.length + 1}`,
+      heightM: 3.2,
+      rooms: [],
+      switchPoint: { x: CANVAS_W_M / 2, y: CANVAS_H_M / 2 },
+    }
+    setPlan((prev) => ({ ...prev, floors: [...prev.floors, floor] }))
+    setActiveFloorId(floor.id)
+  }
+
+  function removeFloor(floorId: string) {
+    if (plan.floors.length <= 1) return
+    setPlan((prev) => {
+      const floors = prev.floors.filter((f) => f.id !== floorId)
+      const serverFloorId = prev.serverFloorId === floorId ? floors[0].id : prev.serverFloorId
+      return { ...prev, floors, serverFloorId }
+    })
+    if (activeFloorId === floorId) setActiveFloorId(plan.floors.find((f) => f.id !== floorId)?.id ?? plan.floors[0].id)
+  }
+
+  function pointerToMeters(e: ReactPointerEvent) {
+    const rect = canvasRef.current?.getBoundingClientRect()
+    if (!rect) return { x: 0, y: 0 }
+    return {
+      x: clamp((e.clientX - rect.left) / PX_PER_M, 0, CANVAS_W_M),
+      y: clamp((e.clientY - rect.top) / PX_PER_M, 0, CANVAS_H_M),
+    }
+  }
+
+  function onCanvasPointerDown(e: ReactPointerEvent<HTMLDivElement>) {
+    if (e.button !== 0) return
+    setSelectedRoomId(null)
+    const m = pointerToMeters(e)
+    drawStartRef.current = m
+    setDrawRect({ x: m.x, y: m.y, w: 0, h: 0 })
+    canvasRef.current?.setPointerCapture(e.pointerId)
+  }
+
+  function onCanvasPointerMove(e: ReactPointerEvent<HTMLDivElement>) {
+    if (!drawStartRef.current) return
+    const m = pointerToMeters(e)
+    const start = drawStartRef.current
+    setDrawRect({ x: Math.min(start.x, m.x), y: Math.min(start.y, m.y), w: Math.abs(m.x - start.x), h: Math.abs(m.y - start.y) })
+  }
+
+  function onCanvasPointerUp() {
+    const rect = drawRect
+    drawStartRef.current = null
+    setDrawRect(null)
+    if (!rect || rect.w < 0.5 || rect.h < 0.5) return
+    const room: Room = {
+      id: genId('room'),
+      name: `Комната ${activeFloor.rooms.length + 1}`,
+      x: round1(rect.x),
+      y: round1(rect.y),
+      w: round1(Math.max(0.5, rect.w)),
+      h: round1(Math.max(0.5, rect.h)),
+      wallMaterial: 'drywall',
+    }
+    updateFloor(activeFloor.id, (f) => ({ ...f, rooms: [...f.rooms, room] }))
+    setSelectedRoomId(room.id)
+  }
+
+  function onRoomPointerDown(e: ReactPointerEvent<HTMLDivElement>, room: Room) {
+    e.stopPropagation()
+    setSelectedRoomId(room.id)
+    dragRef.current = { kind: 'room', roomId: room.id, startClientX: e.clientX, startClientY: e.clientY, startX: room.x, startY: room.y, w: room.w, h: room.h }
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }
+
+  function onRoomPointerMove(e: ReactPointerEvent<HTMLDivElement>) {
+    const d = dragRef.current
+    if (!d || d.kind !== 'room') return
+    const dxM = (e.clientX - d.startClientX) / PX_PER_M
+    const dyM = (e.clientY - d.startClientY) / PX_PER_M
+    updateRoom(d.roomId, (r) => ({
+      ...r,
+      x: round1(clamp(d.startX + dxM, 0, CANVAS_W_M - d.w)),
+      y: round1(clamp(d.startY + dyM, 0, CANVAS_H_M - d.h)),
+    }))
+  }
+
+  function onResizeHandlePointerDown(e: ReactPointerEvent<HTMLDivElement>, room: Room) {
+    e.stopPropagation()
+    dragRef.current = { kind: 'resize', roomId: room.id, startClientX: e.clientX, startClientY: e.clientY, x: room.x, y: room.y, startW: room.w, startH: room.h }
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }
+
+  function onResizeHandlePointerMove(e: ReactPointerEvent<HTMLDivElement>) {
+    const d = dragRef.current
+    if (!d || d.kind !== 'resize') return
+    const dxM = (e.clientX - d.startClientX) / PX_PER_M
+    const dyM = (e.clientY - d.startClientY) / PX_PER_M
+    updateRoom(d.roomId, (r) => ({
+      ...r,
+      w: round1(clamp(d.startW + dxM, 0.5, CANVAS_W_M - d.x)),
+      h: round1(clamp(d.startH + dyM, 0.5, CANVAS_H_M - d.y)),
+    }))
+  }
+
+  function onSwitchPointerDown(e: ReactPointerEvent<HTMLDivElement>) {
+    e.stopPropagation()
+    dragRef.current = { kind: 'switch', startClientX: e.clientX, startClientY: e.clientY, startX: activeFloor.switchPoint.x, startY: activeFloor.switchPoint.y }
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }
+
+  function onSwitchPointerMove(e: ReactPointerEvent<HTMLDivElement>) {
+    const d = dragRef.current
+    if (!d || d.kind !== 'switch') return
+    const dxM = (e.clientX - d.startClientX) / PX_PER_M
+    const dyM = (e.clientY - d.startClientY) / PX_PER_M
+    updateFloor(activeFloor.id, (f) => ({
+      ...f,
+      switchPoint: { x: round1(clamp(d.startX + dxM, 0, CANVAS_W_M)), y: round1(clamp(d.startY + dyM, 0, CANVAS_H_M)) },
+    }))
+  }
+
+  function onAnyPointerUp() {
+    dragRef.current = null
+  }
+
+  const selectedRoom = activeFloor.rooms.find((r) => r.id === selectedRoomId) ?? null
+  const isServerFloor = plan.serverFloorId === activeFloor.id
+
+  return (
+    <div>
+      <div className="mb-4 no-print">
+        <h1 className="text-xl font-semibold text-slate-900">План здания</h1>
+        <p className="text-sm text-slate-500">
+          Нарисуйте комнаты мышью прямо на плане (клик и протяжка), задайте материал стен — система сама расставит точки
+          доступа, подберёт оборудование и посчитает, сколько метров кабеля уйдёт на каждый этаж и до серверной.
+        </p>
+      </div>
+
+      <div className="no-print mb-3 flex flex-wrap items-center gap-2">
+        {plan.floors.map((f) => (
+          <button
+            key={f.id}
+            onClick={() => {
+              setActiveFloorId(f.id)
+              setSelectedRoomId(null)
+            }}
+            className="flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium"
+            style={
+              f.id === activeFloor.id
+                ? { borderColor: '#2563eb', color: '#2563eb', backgroundColor: '#eff6ff' }
+                : { borderColor: '#e2e8f0', color: '#475569' }
+            }
+          >
+            {f.id === plan.serverFloorId && <span title="Серверная / стойка">🖧</span>}
+            {f.name}
+          </button>
+        ))}
+        <button onClick={addFloor} className="rounded-full border border-dashed border-slate-300 px-3 py-1.5 text-sm text-slate-500 hover:bg-slate-50">
+          + Этаж
+        </button>
+      </div>
+
+      <div className="no-print mb-4 flex flex-wrap items-end gap-3 rounded-lg border border-slate-200 bg-white p-3">
+        <div>
+          <label className="block text-xs font-medium text-slate-500">Название этажа</label>
+          <input
+            className="mt-1 rounded border border-slate-300 px-2 py-1 text-sm"
+            value={activeFloor.name}
+            onChange={(e) => updateFloor(activeFloor.id, (f) => ({ ...f, name: e.target.value }))}
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-slate-500">Высота этажа, м</label>
+          <input
+            type="number"
+            step={0.1}
+            min={2}
+            className="mt-1 w-24 rounded border border-slate-300 px-2 py-1 text-sm"
+            value={activeFloor.heightM}
+            onChange={(e) => updateFloor(activeFloor.id, (f) => ({ ...f, heightM: Number(e.target.value) }))}
+          />
+        </div>
+        <button
+          onClick={() => setPlan((prev) => ({ ...prev, serverFloorId: activeFloor.id }))}
+          disabled={isServerFloor}
+          className="rounded border px-3 py-1.5 text-sm font-medium disabled:cursor-default disabled:opacity-60"
+          style={isServerFloor ? { borderColor: '#2563eb', color: '#2563eb' } : { borderColor: '#cbd5e1', color: '#475569' }}
+        >
+          {isServerFloor ? '🖧 Это серверная' : 'Сделать серверной'}
+        </button>
+        {plan.floors.length > 1 && (
+          <button onClick={() => removeFloor(activeFloor.id)} className="ml-auto rounded border border-red-200 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50">
+            Удалить этаж
+          </button>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_340px]">
+        <div>
+          <p className="no-print mb-2 text-xs text-slate-400">
+            Метка <b>🖧</b> — коммутатор/серверная этого этажа, её можно перетащить. Синие точки — автоматически расставленные
+            точки доступа Wi-Fi.
+          </p>
+          <div className="overflow-auto rounded-lg border-2 border-slate-300 bg-white">
+            <div
+              ref={canvasRef}
+              onPointerDown={onCanvasPointerDown}
+              onPointerMove={onCanvasPointerMove}
+              onPointerUp={onCanvasPointerUp}
+              style={{
+                width: CANVAS_W_PX,
+                height: CANVAS_H_PX,
+                position: 'relative',
+                cursor: 'crosshair',
+                backgroundImage:
+                  'linear-gradient(to right, #f1f5f9 1px, transparent 1px), linear-gradient(to bottom, #f1f5f9 1px, transparent 1px)',
+                backgroundSize: `${PX_PER_M}px ${PX_PER_M}px`,
+              }}
+            >
+              {activeFloor.rooms.map((room) => (
+                <div
+                  key={room.id}
+                  onPointerDown={(e) => onRoomPointerDown(e, room)}
+                  onPointerMove={onRoomPointerMove}
+                  onPointerUp={onAnyPointerUp}
+                  className="absolute flex cursor-move flex-col items-center justify-center overflow-hidden rounded-sm border-2 text-center text-xs font-medium text-slate-700"
+                  style={{
+                    left: room.x * PX_PER_M,
+                    top: room.y * PX_PER_M,
+                    width: room.w * PX_PER_M,
+                    height: room.h * PX_PER_M,
+                    backgroundColor: wallMaterialColor(room.wallMaterial),
+                    borderColor: room.id === selectedRoomId ? '#2563eb' : '#94a3b8',
+                    zIndex: 1,
+                  }}
+                >
+                  <span className="truncate px-1">{room.name}</span>
+                  <span className="text-[10px] text-slate-500">{round1(room.w * room.h)} м²</span>
+                  <div
+                    onPointerDown={(e) => onResizeHandlePointerDown(e, room)}
+                    onPointerMove={onResizeHandlePointerMove}
+                    onPointerUp={onAnyPointerUp}
+                    className="absolute bottom-0 right-0 h-3 w-3 cursor-nwse-resize bg-slate-500"
+                  />
+                </div>
+              ))}
+
+              {drawRect && (
+                <div
+                  className="absolute border-2 border-dashed border-blue-500 bg-blue-100/40"
+                  style={{ left: drawRect.x * PX_PER_M, top: drawRect.y * PX_PER_M, width: drawRect.w * PX_PER_M, height: drawRect.h * PX_PER_M }}
+                />
+              )}
+
+              <svg width={CANVAS_W_PX} height={CANVAS_H_PX} className="pointer-events-none absolute inset-0" style={{ zIndex: 2 }}>
+                {activeFloorResult?.aps.map((ap) => (
+                  <g key={ap.id}>
+                    <line
+                      x1={ap.pos.x * PX_PER_M}
+                      y1={ap.pos.y * PX_PER_M}
+                      x2={activeFloor.switchPoint.x * PX_PER_M}
+                      y2={activeFloor.switchPoint.y * PX_PER_M}
+                      stroke="#2563eb"
+                      strokeWidth={1}
+                      strokeDasharray="4 3"
+                      opacity={0.5}
+                    />
+                    <circle cx={ap.pos.x * PX_PER_M} cy={ap.pos.y * PX_PER_M} r={5} fill="#2563eb">
+                      <title>{`Точка доступа — кабель ~${round1(ap.cableLengthM)} м`}</title>
+                    </circle>
+                  </g>
+                ))}
+              </svg>
+
+              <div
+                onPointerDown={onSwitchPointerDown}
+                onPointerMove={onSwitchPointerMove}
+                onPointerUp={onAnyPointerUp}
+                title="Коммутатор/серверная этого этажа — перетащите"
+                className="absolute flex h-6 w-6 -translate-x-1/2 -translate-y-1/2 cursor-move items-center justify-center rounded bg-slate-900 text-xs text-white shadow"
+                style={{ left: activeFloor.switchPoint.x * PX_PER_M, top: activeFloor.switchPoint.y * PX_PER_M, zIndex: 3 }}
+              >
+                🖧
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          {selectedRoom && (
+            <div className="no-print rounded-lg border border-slate-200 bg-white p-4">
+              <h2 className="mb-2 text-sm font-semibold text-slate-700">Комната</h2>
+              <div className="space-y-2">
+                <div>
+                  <label className="block text-xs text-slate-500">Название</label>
+                  <input
+                    className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
+                    value={selectedRoom.name}
+                    onChange={(e) => updateRoom(selectedRoom.id, (r) => ({ ...r, name: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-500">Материал стен</label>
+                  <select
+                    className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
+                    value={selectedRoom.wallMaterial}
+                    onChange={(e) => updateRoom(selectedRoom.id, (r) => ({ ...r, wallMaterial: e.target.value as WallMaterial }))}
+                  >
+                    {MATERIALS.map((m) => (
+                      <option key={m} value={m}>
+                        {wallMaterialLabel(m)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs text-slate-500">Ширина, м</label>
+                    <input
+                      type="number"
+                      step={0.1}
+                      min={0.5}
+                      className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
+                      value={selectedRoom.w}
+                      onChange={(e) => updateRoom(selectedRoom.id, (r) => ({ ...r, w: Math.max(0.5, Number(e.target.value)) }))}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-500">Глубина, м</label>
+                    <input
+                      type="number"
+                      step={0.1}
+                      min={0.5}
+                      className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
+                      value={selectedRoom.h}
+                      onChange={(e) => updateRoom(selectedRoom.id, (r) => ({ ...r, h: Math.max(0.5, Number(e.target.value)) }))}
+                    />
+                  </div>
+                </div>
+                <button onClick={() => removeRoom(selectedRoom.id)} className="text-sm text-red-600 hover:underline">
+                  Удалить комнату
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <h2 className="mb-2 text-sm font-semibold text-slate-700">Оборудование по проекту</h2>
+            <div className="space-y-3">
+              {result.perFloor.map((fr) => (
+                <div key={fr.floor.id} className="border-b border-slate-100 pb-2 text-sm last:border-0">
+                  <div className="font-medium text-slate-800">{fr.floor.name}</div>
+                  {fr.aps.length === 0 ? (
+                    <div className="text-xs text-slate-400">Нет комнат — нарисуйте план этажа</div>
+                  ) : (
+                    <ul className="mt-1 space-y-0.5 text-xs text-slate-600">
+                      <li>
+                        {fr.apProduct ? `${fr.apProduct.brand} ${fr.apProduct.model}` : 'AP не подобран'} × {fr.aps.length}
+                      </li>
+                      {fr.switchProduct && (
+                        <li>
+                          {fr.switchProduct.brand} {fr.switchProduct.model} × {fr.switchQty}
+                        </li>
+                      )}
+                      <li>Кабель по этажу: ~{round1(fr.accessCableM)} м</li>
+                      {fr.backboneCableM > 0 && <li>Магистральный кабель до серверной: ~{round1(fr.backboneCableM)} м</li>}
+                    </ul>
+                  )}
+                </div>
+              ))}
+
+              {result.routerProduct && (
+                <div className="text-sm">
+                  Роутер/шлюз: {result.routerProduct.brand} {result.routerProduct.model}
+                </div>
+              )}
+              {result.controllerProduct && (
+                <div className="text-sm">
+                  Контроллер сети: {result.controllerProduct.brand} {result.controllerProduct.model}
+                </div>
+              )}
+            </div>
+
+            {result.warnings.length > 0 && (
+              <div className="mt-3 space-y-1 rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+                {result.warnings.map((w, i) => (
+                  <div key={i}>⚠ {w}</div>
+                ))}
+              </div>
+            )}
+
+            <div className="mt-3 space-y-1 border-t border-slate-100 pt-2 text-sm text-slate-600">
+              <div className="flex justify-between">
+                <span>Точек доступа всего</span>
+                <span className="font-medium text-slate-900">{result.totalAPCount}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Кабель всего (с запасом)</span>
+                <span className="font-medium text-slate-900">~{round1(result.totalCableM)} м</span>
+              </div>
+              <div className="flex justify-between text-xs text-slate-400">
+                <span>из них кабель, ориентировочно</span>
+                <span>${round1(result.cableCostUSD)}</span>
+              </div>
+            </div>
+
+            <div className="mt-2 flex items-center justify-between border-t border-slate-100 pt-2">
+              <span className="text-base font-semibold text-slate-900">Итого по проекту</span>
+              <span className="text-xl font-bold text-slate-900">${Math.round(result.totalUSD).toLocaleString()}</span>
+            </div>
+            <p className="mt-1 text-[11px] text-slate-400">
+              Кабель — ориентировочный расчёт по прямой (с запасом на слабину и разделку), без учёта коробов, разъёмов и работ.
+            </p>
+
+            <button onClick={() => window.print()} className="no-print mt-3 w-full rounded bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700">
+              Печать / сохранить как PDF
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
