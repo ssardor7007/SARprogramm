@@ -1,6 +1,7 @@
 import { CATEGORY_LABELS, PRICE_CATEGORY_LABELS } from '../types'
 import type { CompetitorProduct, Product } from '../types'
 import { stockLabel } from '../lib/matching'
+import { ProductImage } from './ProductImage'
 
 interface Props {
   competitor?: CompetitorProduct
@@ -26,19 +27,31 @@ export function ComparisonCard({ competitor, own, ownAlternatives, qty, onQtyCha
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-4 print:break-inside-avoid">
       <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
-            {CATEGORY_LABELS[own.category]}
-          </span>
-          {competitor && (
-            <div className="mt-1 text-sm text-slate-500">
-              Из списка клиента: <span className="font-medium text-slate-700">{competitor.brand} {competitor.model}</span> (${competitor.priceUSD})
-            </div>
-          )}
-        </div>
+        <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
+          {CATEGORY_LABELS[own.category]}
+        </span>
         <button onClick={onRemove} className="no-print text-sm text-red-600 hover:underline">
           Убрать из КП
         </button>
+      </div>
+
+      <div className="mb-3 flex flex-wrap items-center gap-4">
+        {competitor && (
+          <>
+            <div className="flex items-center gap-2">
+              <ProductImage imageUrl={competitor.imageUrl} brand={competitor.brand} category={competitor.category} />
+              <div className="text-sm">
+                <div className="text-xs text-slate-400">Из списка клиента</div>
+                <div className="font-medium text-slate-700">
+                  {competitor.brand} {competitor.model}
+                </div>
+                <div className="text-slate-400">${competitor.priceUSD}</div>
+              </div>
+            </div>
+            <span className="text-xl text-slate-300">→</span>
+          </>
+        )}
+        <ProductImage imageUrl={own.imageUrl} brand={own.brand} category={own.category} />
       </div>
 
       <div className="mb-3 flex flex-wrap items-center gap-3">

@@ -126,6 +126,16 @@ export function OwnProductForm({ initial, onSave, onClose }: Props) {
           </div>
         </div>
 
+        <div>
+          <label className="block text-sm font-medium text-slate-700">Ссылка на фото (необязательно)</label>
+          <input
+            className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+            placeholder="https://... — если не указано, покажется иконка категории"
+            value={product.imageUrl ?? ''}
+            onChange={(e) => setProduct({ ...product, imageUrl: e.target.value || undefined })}
+          />
+        </div>
+
         <SpecsEditor specs={product.specs} onChange={(specs) => setProduct({ ...product, specs })} />
         <StringListEditor
           label="Плюсы (относительно конкурентов)"

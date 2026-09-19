@@ -47,6 +47,8 @@ export interface BaseProduct {
   priceUSD: number
   priceCategory: PriceCategory
   notes?: string
+  /** необязательное фото товара; без него показывается фирменная иконка категории */
+  imageUrl?: string
 }
 
 export interface Product extends BaseProduct {

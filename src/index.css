@@ -1,5 +1,49 @@
 @import "tailwindcss";
 
+:root {
+  --bg: #f3f5fb;
+  --surface: #ffffff;
+  --surface-alt: #eef1f8;
+  --border: #dde2ee;
+  --text: #16192a;
+  --text-muted: #5b6178;
+  --accent: #2f5fe0;
+  --accent-ink: #ffffff;
+  --ok: #17915a;
+  --warn: #b8730a;
+  --danger: #c2373d;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #10131f;
+    --surface: #171b2b;
+    --surface-alt: #1e2336;
+    --border: #2a3049;
+    --text: #eef0f7;
+    --text-muted: #9298b3;
+    --accent: #5b84f0;
+    --accent-ink: #0b0e18;
+    --ok: #3ecf8e;
+    --warn: #e0a83e;
+    --danger: #ef6b73;
+  }
+}
+
+:root[data-theme='dark'] {
+  --bg: #10131f;
+  --surface: #171b2b;
+  --surface-alt: #1e2336;
+  --border: #2a3049;
+  --text: #eef0f7;
+  --text-muted: #9298b3;
+  --accent: #5b84f0;
+  --accent-ink: #0b0e18;
+  --ok: #3ecf8e;
+  --warn: #e0a83e;
+  --danger: #ef6b73;
+}
+
 @media print {
   .no-print {
     display: none !important;
@@ -10,5 +54,17 @@
 }
 
 body {
-  background-color: #f1f5f9;
+  background-color: var(--bg);
+  color: var(--text);
+  font-family:
+    'Manrope',
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    sans-serif;
+}
+
+.font-display {
+  font-family: 'Manrope', system-ui, sans-serif;
+  letter-spacing: -0.01em;
 }

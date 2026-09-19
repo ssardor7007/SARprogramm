@@ -3,6 +3,7 @@ import { CATEGORY_LABELS, PRICE_CATEGORY_LABELS } from '../types'
 import type { Category, Product } from '../types'
 import { stockLabel } from '../lib/matching'
 import { OwnProductForm } from './OwnProductForm'
+import { ProductImage } from './ProductImage'
 
 interface Props {
   items: Product[]
@@ -101,10 +102,15 @@ export function OwnCatalogView({ items, onSave, onRemove, onReset }: Props) {
               return (
                 <tr key={p.id} className="hover:bg-slate-50">
                   <td className="px-3 py-2">
-                    <div className="font-medium text-slate-900">
-                      {p.brand} {p.model}
+                    <div className="flex items-center gap-3">
+                      <ProductImage imageUrl={p.imageUrl} brand={p.brand} category={p.category} size="sm" />
+                      <div>
+                        <div className="font-medium text-slate-900">
+                          {p.brand} {p.model}
+                        </div>
+                        {p.series && <div className="text-xs text-slate-500">{p.series}</div>}
+                      </div>
                     </div>
-                    {p.series && <div className="text-xs text-slate-500">{p.series}</div>}
                   </td>
                   <td className="px-3 py-2 text-slate-600">{CATEGORY_LABELS[p.category as Category]}</td>
                   <td className="px-3 py-2 text-slate-600">

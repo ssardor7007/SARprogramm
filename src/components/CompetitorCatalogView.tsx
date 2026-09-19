@@ -3,6 +3,7 @@ import { CATEGORY_LABELS } from '../types'
 import type { CompetitorProduct, Product } from '../types'
 import { findBestMatch } from '../lib/matching'
 import { CompetitorProductForm } from './CompetitorProductForm'
+import { ProductImage } from './ProductImage'
 
 interface Props {
   items: CompetitorProduct[]
@@ -82,8 +83,11 @@ export function CompetitorCatalogView({ items, ownCatalog, onSave, onRemove, onR
               return (
                 <tr key={p.id} className="hover:bg-slate-50">
                   <td className="px-3 py-2">
-                    <div className="font-medium text-slate-900">
-                      {p.brand} {p.model}
+                    <div className="flex items-center gap-3">
+                      <ProductImage imageUrl={p.imageUrl} brand={p.brand} category={p.category} size="sm" />
+                      <div className="font-medium text-slate-900">
+                        {p.brand} {p.model}
+                      </div>
                     </div>
                   </td>
                   <td className="px-3 py-2 text-slate-600">{CATEGORY_LABELS[p.category]}</td>

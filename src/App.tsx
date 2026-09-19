@@ -1,19 +1,22 @@
-import { useState } from 'react'
+import { useState, type ComponentType } from 'react'
 import { CompareView } from './components/CompareView'
 import { CompetitorCatalogView } from './components/CompetitorCatalogView'
 import { DesignerView } from './components/DesignerView'
+import { CatalogIcon, CompareIcon, CompetitorsIcon, DesignerIcon } from './components/NavIcons'
 import { OwnCatalogView } from './components/OwnCatalogView'
 import { COMPETITOR_PRODUCTS } from './data/competitorProducts'
 import { OWN_PRODUCTS } from './data/ownProducts'
+import { brandColor } from './lib/brandTheme'
 import { usePersistedList } from './lib/storage'
+import { OWN_BRANDS } from './types'
 
 type Tab = 'compare' | 'catalog' | 'competitors' | 'designer'
 
-const TABS: { id: Tab; label: string }[] = [
-  { id: 'compare', label: 'Сравнение / КП' },
-  { id: 'designer', label: 'Подбор по объекту' },
-  { id: 'catalog', label: 'Мой каталог' },
-  { id: 'competitors', label: 'Конкуренты' },
+const TABS: { id: Tab; label: string; icon: ComponentType }[] = [
+  { id: 'compare', label: 'Сравнение / КП', icon: CompareIcon },
+  { id: 'designer', label: 'Подбор по объекту', icon: DesignerIcon },
+  { id: 'catalog', label: 'Мой каталог', icon: CatalogIcon },
+  { id: 'competitors', label: 'Конкуренты', icon: CompetitorsIcon },
 ]
 
 function App() {
@@ -24,28 +27,58 @@ function App() {
 
   return (
     <div className="min-h-screen">
-      <header className="no-print border-b border-slate-200 bg-white">
-        <div className="mx-auto max-w-6xl px-4 py-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-lg font-bold text-slate-900">SAR — сравнение оборудования</h1>
-              <p className="text-xs text-slate-500">TP-Link · Vitek · Hikvision — предложения против конкурентов</p>
+      <header className="no-print border-b border-[var(--border)] bg-[var(--surface)]">
+        <div className="mx-auto max-w-6xl px-4 pt-5 pb-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div
+                className="font-display flex h-10 w-10 items-center justify-center rounded-xl text-base font-extrabold text-[var(--accent-ink)]"
+                style={{ backgroundColor: 'var(--accent)' }}
+              >
+                S
+              </div>
+              <div>
+                <h1 className="font-display text-lg font-extrabold text-[var(--text)]">SAR</h1>
+                <p className="text-xs text-[var(--text-muted)]">Сетевое оборудование и видеонаблюдение</p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {OWN_BRANDS.map((b) => (
+                <span
+                  key={b}
+                  className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium"
+                  style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+                >
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: brandColor(b) }} />
+                  {b}
+                </span>
+              ))}
             </div>
           </div>
-          <nav className="mt-3 flex gap-1 overflow-x-auto">
-            {TABS.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setTab(t.id)}
-                className={`shrink-0 rounded-t-md px-3 py-1.5 text-sm font-medium ${
-                  tab === t.id
-                    ? 'bg-blue-600 text-white'
-                    : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
+
+          <nav className="mt-4 flex gap-1 overflow-x-auto">
+            {TABS.map((t) => {
+              const Icon = t.icon
+              const active = tab === t.id
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setTab(t.id)}
+                  className="flex shrink-0 items-center gap-1.5 rounded-t-lg border-b-2 px-3 py-2 text-sm font-medium transition-colors"
+                  style={
+                    active
+                      ? { borderColor: 'var(--accent)', color: 'var(--accent)' }
+                      : { borderColor: 'transparent', color: 'var(--text-muted)' }
+                  }
+                >
+                  <span className="h-4 w-4">
+                    <Icon />
+                  </span>
+                  {t.label}
+                </button>
+              )
+            })}
           </nav>
         </div>
       </header>
