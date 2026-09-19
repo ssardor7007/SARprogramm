@@ -56,12 +56,30 @@
 body {
   background-color: var(--bg);
   color: var(--text);
+  color-scheme: light dark;
   font-family:
     'Manrope',
     system-ui,
     -apple-system,
     'Segoe UI',
     sans-serif;
+}
+
+/*
+ * Без этого select/input наследуют светлый цвет текста тёмной темы, но
+ * получают нативный светлый фон от браузера (особенно заметно в выпадающем
+ * списке select) — текст становится нечитаемым. Задаём фон/цвет явно.
+ */
+input,
+select,
+textarea {
+  background-color: var(--surface);
+  color: var(--text);
+}
+
+select option {
+  background-color: var(--surface);
+  color: var(--text);
 }
 
 .font-display {
