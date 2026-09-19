@@ -33,6 +33,7 @@ export const BRANDS = [
   'Ubiquiti (UniFi)',
   'MikroTik',
   'Ruijie',
+  'Оптика',
 ] as const
 export type Brand = (typeof BRANDS)[number]
 

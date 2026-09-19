@@ -8,6 +8,7 @@ export const BRAND_COLORS: Record<string, string> = {
   'Ubiquiti (UniFi)': '#0559c9',
   MikroTik: '#b02a37',
   Ruijie: '#7c53e0',
+  Оптика: '#0f9b8e',
 }
 
 const FALLBACK_COLOR = '#5b6178'

@@ -40,12 +40,18 @@ const AREA_PER_AP: Record<WallMaterial, number> = {
 const DEVICE_CAPACITY_PER_AP = 25
 const POE_PORT_HEADROOM = 1.15
 
+/**
+ * Ищет товар по id, а если он был удалён/переименован в каталоге — берёт
+ * любой товар TP-Link той же категории и ценового уровня. Подбор всегда
+ * держится бренда TP-Link, чтобы предложение оставалось единой линейкой
+ * Omada, а не миксом случайных брендов.
+ */
 function findProduct(catalog: Product[], id: string, category: Product['category'], tier: 'budget' | 'mid' | 'premium') {
   const byId = catalog.find((p) => p.id === id)
   if (byId) return byId
-  const sameCategory = catalog.filter((p) => p.category === category)
-  const sameTier = sameCategory.find((p) => p.priceCategory === tier)
-  return sameTier ?? sameCategory[0]
+  const tplCategory = catalog.filter((p) => p.brand === 'TP-Link' && p.category === category)
+  const sameTier = tplCategory.find((p) => p.priceCategory === tier)
+  return sameTier ?? tplCategory[0]
 }
 
 export function designNetwork(input: DesignerInput, catalog: Product[]): DesignerResult {
@@ -67,7 +73,7 @@ export function designNetwork(input: DesignerInput, catalog: Product[]): Designe
   let apTier: 'budget' | 'mid' | 'premium' = 'budget'
   if (devicesPerAP > 25 || areaPerAP >= 150) apTier = 'premium'
   else if (devicesPerAP > 12 || input.wallMaterial !== 'open') apTier = 'mid'
-  const apIdByTier = { budget: 'tpl-eap225', mid: 'tpl-eap620hd', premium: 'tpl-eap670' } as const
+  const apIdByTier = { budget: 'tpl-eap225', mid: 'tpl-eap670', premium: 'tpl-eap660-hd' } as const
   const apProduct = findProduct(catalog, apIdByTier[apTier], 'ap', apTier)
 
   const lines: DesignerLine[] = []
