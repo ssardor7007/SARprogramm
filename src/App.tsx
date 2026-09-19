@@ -1,25 +1,23 @@
 import { useState, type ComponentType } from 'react'
 import { CatalogView } from './components/CatalogView'
-import { CompareView } from './components/CompareView'
 import { DesignerView } from './components/DesignerView'
-import { CatalogIcon, CompareIcon, DesignerIcon, RackIcon } from './components/NavIcons'
+import { CatalogIcon, DesignerIcon, RackIcon } from './components/NavIcons'
 import { RackDesignerView } from './components/RackDesignerView'
 import { PRODUCTS } from './data/products'
 import { brandColor } from './lib/brandTheme'
 import { visibleBrands } from './lib/features'
 import { usePersistedList } from './lib/storage'
 
-type Tab = 'compare' | 'catalog' | 'designer' | 'rack'
+type Tab = 'catalog' | 'designer' | 'rack'
 
 const TABS: { id: Tab; label: string; icon: ComponentType }[] = [
-  { id: 'compare', label: 'Сравнение / КП', icon: CompareIcon },
   { id: 'designer', label: 'Подбор по объекту', icon: DesignerIcon },
   { id: 'rack', label: 'Стойка', icon: RackIcon },
   { id: 'catalog', label: 'Каталог', icon: CatalogIcon },
 ]
 
 function App() {
-  const [tab, setTab] = useState<Tab>('compare')
+  const [tab, setTab] = useState<Tab>('designer')
 
   const catalog = usePersistedList('products', PRODUCTS)
 
@@ -82,7 +80,6 @@ function App() {
       </header>
 
       <main className="mx-auto max-w-6xl px-4 py-6 print:max-w-none print:px-0">
-        {tab === 'compare' && <CompareView catalog={catalog.items} />}
         {tab === 'designer' && <DesignerView catalog={catalog.items} />}
         {tab === 'rack' && <RackDesignerView catalog={catalog.items} />}
         {tab === 'catalog' && (

@@ -6,15 +6,6 @@ const common = {
   strokeLinejoin: 'round' as const,
 }
 
-export function CompareIcon() {
-  return (
-    <svg viewBox="0 0 24 24" {...common}>
-      <path d="M8 4 4 8l4 4M4 8h9" />
-      <path d="M16 20l4-4-4-4M20 16h-9" />
-    </svg>
-  )
-}
-
 export function DesignerIcon() {
   return (
     <svg viewBox="0 0 24 24" {...common}>
