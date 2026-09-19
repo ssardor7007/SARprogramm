@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import type { Product } from '../types'
+import { CATEGORY_LABELS } from '../types'
+import type { Category, Product } from '../types'
 import { brandColor } from '../lib/brandTheme'
 import { genId, usePersistedState } from '../lib/storage'
 import { ProductImage } from './ProductImage'
@@ -8,18 +9,22 @@ interface Props {
   catalog: Product[]
 }
 
-interface RackItem {
+/** Позиция в стойке — количество одинаковых юнитов вместо отдельной строки на каждый физический экземпляр. */
+interface RackLine {
   id: string
   productId: string
-  units: number
+  qty: number
+  /** Высота в юнитах ОДНОГО экземпляра этой модели */
+  unitsPerItem: number
 }
 
 const UNIT_PX = 22
 const RACK_HEIGHTS = [12, 24, 42] as const
+const CATEGORY_ORDER: Category[] = ['router', 'switch', 'ap', 'camera', 'nvr', 'other']
 
 export function RackDesignerView({ catalog }: Props) {
   const [rackHeight, setRackHeight] = usePersistedState<(typeof RACK_HEIGHTS)[number]>('rack-height', 42)
-  const [items, setItems] = usePersistedState<RackItem[]>('rack-items', [])
+  const [lines, setLines] = usePersistedState<RackLine[]>('rack-lines', [])
   const [search, setSearch] = useState('')
   const [brandFilter, setBrandFilter] = useState('all')
   const [dragIndex, setDragIndex] = useState<number | null>(null)
@@ -34,20 +39,38 @@ export function RackDesignerView({ catalog }: Props) {
       .slice(0, 30)
   }, [search, brandFilter, catalog])
 
-  function addItem(product: Product) {
-    setItems((prev) => [...prev, { id: genId('rack'), productId: product.id, units: 1 }])
+  function qtyOf(productId: string) {
+    return lines.find((l) => l.productId === productId)?.qty ?? 0
   }
 
-  function removeItem(id: string) {
-    setItems((prev) => prev.filter((i) => i.id !== id))
+  function addOne(product: Product) {
+    setLines((prev) => {
+      const existing = prev.find((l) => l.productId === product.id)
+      if (existing) return prev.map((l) => (l.productId === product.id ? { ...l, qty: l.qty + 1 } : l))
+      return [...prev, { id: genId('rack'), productId: product.id, qty: 1, unitsPerItem: 1 }]
+    })
   }
 
-  function setUnits(id: string, units: number) {
-    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, units: Math.min(8, Math.max(1, units)) } : i)))
+  function removeOne(productId: string) {
+    setLines((prev) =>
+      prev.flatMap((l) => {
+        if (l.productId !== productId) return [l]
+        if (l.qty <= 1) return []
+        return [{ ...l, qty: l.qty - 1 }]
+      }),
+    )
   }
 
-  function moveItem(from: number, to: number) {
-    setItems((prev) => {
+  function removeLine(id: string) {
+    setLines((prev) => prev.filter((l) => l.id !== id))
+  }
+
+  function setUnitsPerItem(id: string, units: number) {
+    setLines((prev) => prev.map((l) => (l.id === id ? { ...l, unitsPerItem: Math.min(8, Math.max(1, units)) } : l)))
+  }
+
+  function moveLine(from: number, to: number) {
+    setLines((prev) => {
       const next = [...prev]
       const [moved] = next.splice(from, 1)
       next.splice(to, 0, moved)
@@ -55,13 +78,26 @@ export function RackDesignerView({ catalog }: Props) {
     })
   }
 
-  const usedU = items.reduce((sum, i) => sum + i.units, 0)
-  const totalPrice = items.reduce((sum, i) => {
-    const p = catalog.find((c) => c.id === i.productId)
-    return sum + (p ? p.priceUSD : 0)
+  const usedU = lines.reduce((sum, l) => sum + l.qty * l.unitsPerItem, 0)
+  const totalItems = lines.reduce((sum, l) => sum + l.qty, 0)
+  const totalPrice = lines.reduce((sum, l) => {
+    const p = catalog.find((c) => c.id === l.productId)
+    return sum + (p ? p.priceUSD * l.qty : 0)
   }, 0)
   const overCapacity = usedU > rackHeight
   const freeU = Math.max(0, rackHeight - usedU)
+
+  const groupedLines = useMemo(() => {
+    const groups = new Map<Category, RackLine[]>()
+    for (const line of lines) {
+      const p = catalog.find((c) => c.id === line.productId)
+      if (!p) continue
+      const arr = groups.get(p.category) ?? []
+      arr.push(line)
+      groups.set(p.category, arr)
+    }
+    return CATEGORY_ORDER.filter((c) => groups.has(c)).map((c) => ({ category: c, items: groups.get(c)! }))
+  }, [lines, catalog])
 
   return (
     <div>
@@ -70,14 +106,14 @@ export function RackDesignerView({ catalog }: Props) {
           <h1 className="text-xl font-semibold text-slate-900">Дизайнер стойки</h1>
           <p className="text-sm text-slate-500">
             Соберите проект как в UniFi Design Center — но из оборудования любого бренда каталога. Добавляйте
-            позиции, перетаскивайте для смены порядка, подгоняйте высоту в юнитах.
+            позиции карточками, меняйте количество степпером, перетаскивайте группы для смены порядка.
           </p>
         </div>
-        {items.length > 0 && (
+        {lines.length > 0 && (
           <div className="flex gap-2">
             <button
               onClick={() => {
-                if (confirm('Очистить текущий проект стойки?')) setItems([])
+                if (confirm('Очистить текущий проект стойки?')) setLines([])
               }}
               className="rounded border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100"
             >
@@ -93,7 +129,7 @@ export function RackDesignerView({ catalog }: Props) {
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_300px]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
         {/* Picker */}
         <div className="no-print space-y-4">
           <div className="rounded-lg border border-slate-200 bg-white p-4">
@@ -119,74 +155,113 @@ export function RackDesignerView({ catalog }: Props) {
             </div>
 
             {searchResults.length > 0 ? (
-              <div className="max-h-80 divide-y divide-slate-100 overflow-y-auto rounded border border-slate-200">
-                {searchResults.map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => addItem(p)}
-                    className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-slate-50"
-                  >
-                    <ProductImage imageUrl={p.imageUrl} brand={p.brand} category={p.category} size="sm" />
-                    <span className="flex-1">
-                      <span className="font-medium text-slate-900">
+              <div className="grid max-h-[28rem] grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3">
+                {searchResults.map((p) => {
+                  const qty = qtyOf(p.id)
+                  return (
+                    <div key={p.id} className="flex flex-col items-center rounded-lg border border-slate-200 p-2 text-center">
+                      <ProductImage imageUrl={p.imageUrl} brand={p.brand} category={p.category} size="md" />
+                      <div className="mt-1 line-clamp-2 text-xs font-medium text-slate-900">
                         {p.brand} {p.model}
-                      </span>{' '}
-                      <span className="text-slate-400">${p.priceUSD}</span>
-                    </span>
-                    <span className="text-blue-600">+ в стойку</span>
-                  </button>
-                ))}
+                      </div>
+                      <div className="text-xs text-slate-400">${p.priceUSD}</div>
+                      <div className="mt-2 flex items-center gap-1.5">
+                        <button
+                          onClick={() => removeOne(p.id)}
+                          disabled={qty === 0}
+                          className="h-6 w-6 rounded border border-slate-300 text-sm leading-none hover:bg-slate-100 disabled:opacity-30"
+                        >
+                          −
+                        </button>
+                        <span className="w-5 text-center text-sm font-medium text-slate-900">{qty}</span>
+                        <button
+                          onClick={() => addOne(p)}
+                          className="h-6 w-6 rounded border border-blue-300 text-sm leading-none text-blue-600 hover:bg-blue-50"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             ) : (
               <p className="text-sm text-slate-400">Введите название/модель или выберите бренд, чтобы найти оборудование.</p>
             )}
           </div>
 
-          {items.length > 0 && (
+          {groupedLines.length > 0 && (
             <div className="rounded-lg border border-slate-200 bg-white p-4">
-              <h2 className="mb-2 text-sm font-semibold text-slate-700">Список в стойке (сверху вниз — так же, как в элевации справа)</h2>
-              <div className="space-y-1">
-                {items.map((item, i) => {
-                  const p = catalog.find((c) => c.id === item.productId)
-                  if (!p) return null
-                  return (
-                    <div
-                      key={item.id}
-                      draggable
-                      onDragStart={() => setDragIndex(i)}
-                      onDragOver={(e) => e.preventDefault()}
-                      onDrop={() => {
-                        if (dragIndex !== null && dragIndex !== i) moveItem(dragIndex, i)
-                        setDragIndex(null)
-                      }}
-                      onDragEnd={() => setDragIndex(null)}
-                      className="flex cursor-move items-center gap-2 rounded border border-slate-200 bg-slate-50 px-2 py-1.5 text-sm"
-                    >
-                      <span className="text-slate-300">⠿</span>
-                      <span className="flex-1 truncate">
-                        {p.brand} {p.model}
-                      </span>
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => setUnits(item.id, item.units - 1)}
-                          className="h-5 w-5 rounded border border-slate-300 text-xs leading-none hover:bg-white"
-                        >
-                          −
-                        </button>
-                        <span className="w-8 text-center text-xs text-slate-500">{item.units}U</span>
-                        <button
-                          onClick={() => setUnits(item.id, item.units + 1)}
-                          className="h-5 w-5 rounded border border-slate-300 text-xs leading-none hover:bg-white"
-                        >
-                          +
-                        </button>
-                      </div>
-                      <button onClick={() => removeItem(item.id)} className="text-red-600 hover:underline">
-                        Убрать
-                      </button>
+              <h2 className="mb-2 text-sm font-semibold text-slate-700">Список в стойке, по категориям</h2>
+              <div className="space-y-4">
+                {groupedLines.map(({ category, items }) => (
+                  <div key={category}>
+                    <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                      {CATEGORY_LABELS[category]}
                     </div>
-                  )
-                })}
+                    <div className="space-y-1">
+                      {items.map((line) => {
+                        const p = catalog.find((c) => c.id === line.productId)
+                        if (!p) return null
+                        const globalIndex = lines.indexOf(line)
+                        return (
+                          <div
+                            key={line.id}
+                            draggable
+                            onDragStart={() => setDragIndex(globalIndex)}
+                            onDragOver={(e) => e.preventDefault()}
+                            onDrop={() => {
+                              if (dragIndex !== null && dragIndex !== globalIndex) moveLine(dragIndex, globalIndex)
+                              setDragIndex(null)
+                            }}
+                            onDragEnd={() => setDragIndex(null)}
+                            className="flex cursor-move items-center gap-2 rounded border border-slate-200 bg-slate-50 px-2 py-1.5 text-sm"
+                          >
+                            <span className="text-slate-300">⠿</span>
+                            <span className="flex-1 truncate">
+                              {p.brand} {p.model}
+                            </span>
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => removeOne(p.id)}
+                                className="h-5 w-5 rounded border border-slate-300 text-xs leading-none hover:bg-white"
+                              >
+                                −
+                              </button>
+                              <span className="w-6 text-center text-xs font-medium text-slate-700">{line.qty}</span>
+                              <button
+                                onClick={() => addOne(p)}
+                                className="h-5 w-5 rounded border border-slate-300 text-xs leading-none hover:bg-white"
+                              >
+                                +
+                              </button>
+                            </div>
+                            <div className="flex items-center gap-1 border-l border-slate-200 pl-2">
+                              <button
+                                onClick={() => setUnitsPerItem(line.id, line.unitsPerItem - 1)}
+                                className="h-5 w-5 rounded border border-slate-300 text-xs leading-none hover:bg-white"
+                                title="Высота одного экземпляра, U"
+                              >
+                                −
+                              </button>
+                              <span className="w-8 text-center text-xs text-slate-500">{line.unitsPerItem}U</span>
+                              <button
+                                onClick={() => setUnitsPerItem(line.id, line.unitsPerItem + 1)}
+                                className="h-5 w-5 rounded border border-slate-300 text-xs leading-none hover:bg-white"
+                                title="Высота одного экземпляра, U"
+                              >
+                                +
+                              </button>
+                            </div>
+                            <button onClick={() => removeLine(line.id)} className="text-red-600 hover:underline">
+                              Убрать
+                            </button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}
@@ -216,19 +291,21 @@ export function RackDesignerView({ catalog }: Props) {
 
           <div className="mx-auto w-full max-w-[300px] rounded-md border-2 border-slate-800 bg-slate-900 p-1.5 print:break-inside-avoid">
             <div className="flex flex-col overflow-hidden rounded-sm bg-slate-950">
-              {items.map((item) => {
-                const p = catalog.find((c) => c.id === item.productId)
+              {lines.map((line) => {
+                const p = catalog.find((c) => c.id === line.productId)
                 if (!p) return null
                 const color = brandColor(p.brand)
+                const heightU = line.qty * line.unitsPerItem
                 return (
                   <div
-                    key={item.id}
-                    style={{ height: item.units * UNIT_PX, backgroundColor: `${color}22`, borderColor: color }}
+                    key={line.id}
+                    style={{ height: heightU * UNIT_PX, backgroundColor: `${color}22`, borderColor: color }}
                     className="flex items-center gap-2 border-b border-l-4 px-2 text-white"
                   >
-                    <span className="shrink-0 rounded bg-black/30 px-1 text-[10px] leading-4">{item.units}U</span>
+                    <span className="shrink-0 rounded bg-black/30 px-1 text-[10px] leading-4">{heightU}U</span>
                     <span className="truncate text-xs font-medium">
                       {p.brand} {p.model}
+                      {line.qty > 1 ? ` × ${line.qty}` : ''}
                     </span>
                   </div>
                 )
@@ -260,7 +337,7 @@ export function RackDesignerView({ catalog }: Props) {
             </div>
             <div className="flex items-center justify-between text-sm text-slate-600">
               <span>Позиций в стойке</span>
-              <span className="font-medium text-slate-900">{items.length}</span>
+              <span className="font-medium text-slate-900">{totalItems}</span>
             </div>
             <div className="flex items-center justify-between border-t border-slate-100 pt-2 text-base">
               <span className="font-semibold text-slate-900">Итого оборудование</span>

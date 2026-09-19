@@ -421,20 +421,13 @@ export function BuildingPlanView({ catalog }: Props) {
               Метка <b>🖧</b> — коммутатор/серверная этого этажа, перетащите её. Синие точки — точки доступа Wi-Fi: их можно
               свободно перетаскивать мышью, двойной клик удаляет точку.
             </span>
-            <span className="flex items-center gap-1.5 whitespace-nowrap">
-              Покрытие сигнала:
-              <span className="inline-flex items-center gap-1">
-                <span className="h-2.5 w-2.5 rounded-full bg-green-500" />
-                сильный
-              </span>
-              <span className="inline-flex items-center gap-1">
-                <span className="h-2.5 w-2.5 rounded-full bg-yellow-500" />
-                средний
-              </span>
-              <span className="inline-flex items-center gap-1">
-                <span className="h-2.5 w-2.5 rounded-full bg-red-500" />
-                слабый
-              </span>
+            <span className="flex items-center gap-2 whitespace-nowrap">
+              <span>Слабый</span>
+              <span
+                className="h-2.5 w-28 rounded-full"
+                style={{ background: 'linear-gradient(to right, #ef4444, #eab308, #22c55e)' }}
+              />
+              <span>Сильный</span>
             </span>
           </p>
           <div className="no-print mb-2 flex gap-2">
