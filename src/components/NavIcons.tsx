@@ -40,3 +40,15 @@ export function CompetitorsIcon() {
     </svg>
   )
 }
+
+export function RackIcon() {
+  return (
+    <svg viewBox="0 0 24 24" {...common}>
+      <rect x="4" y="3" width="16" height="18" rx="1" />
+      <path d="M4 8h16M4 13h16M4 18h16" />
+      <circle cx="7" cy="5.5" r="0.6" fill="currentColor" stroke="none" />
+      <circle cx="7" cy="10.5" r="0.6" fill="currentColor" stroke="none" />
+      <circle cx="7" cy="15.5" r="0.6" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
