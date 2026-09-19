@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { BRANDS, type Product } from '../types'
+import { BRANDS, type Brand, type Product } from '../types'
 import {
   AP_MOUNT_LABELS,
   BUILDING_TYPE_LABELS,
@@ -12,6 +12,7 @@ import {
   type CameraTier,
   type DesignerInput,
   type Tier,
+  type TierResult,
   type WallMaterial,
 } from '../lib/designer'
 import { SHOW_VIDEO_SURVEILLANCE } from '../lib/features'
@@ -24,7 +25,6 @@ interface Props {
 }
 
 const WALL_OPTIONS: WallMaterial[] = ['open', 'drywall', 'brick', 'concrete']
-const BRAND_OPTIONS: BrandFilter[] = ['all', ...BRANDS]
 const AP_MOUNT_OPTIONS: ApMountType[] = ['any', 'ceiling', 'wall', 'outdoor']
 const CAMERA_TIERS: CameraTier[] = ['none', 'budget', 'standard', 'premium']
 const TIER_ORDER: Tier[] = ['budget', 'mid', 'premium']
@@ -50,12 +50,22 @@ export function DesignerView({ catalog, onSentToRack }: Props) {
     apMountType: 'any',
     maxBudgetUSD: 0,
   })
+  /** Пусто = «Все бренды (авто)», одна строка из 3 карточек. Один и более брендов — своя строка на каждый. */
+  const [selectedBrands, setSelectedBrands] = useState<Brand[]>([])
 
-  const result = designNetworkTiers(input, catalog)
+  const brandsToShow: BrandFilter[] = selectedBrands.length > 0 ? selectedBrands : ['all']
+  const resultsByBrand = brandsToShow.map((brand) => ({
+    brand,
+    result: designNetworkTiers({ ...input, preferredBrand: brand }, catalog),
+  }))
   const totalAreaM2 = input.floorAreas.reduce((sum, a) => sum + a, 0)
 
   function set<K extends keyof DesignerInput>(key: K, value: DesignerInput[K]) {
     setInput((prev) => ({ ...prev, [key]: value }))
+  }
+
+  function toggleBrand(b: Brand) {
+    setSelectedBrands((prev) => (prev.includes(b) ? prev.filter((x) => x !== b) : [...prev, b]))
   }
 
   function setFloorArea(index: number, area: number) {
@@ -80,10 +90,8 @@ export function DesignerView({ catalog, onSentToRack }: Props) {
     })
   }
 
-  function sendTierToRack(tier: Tier) {
-    const t = result.tiers.find((r) => r.tier === tier)
-    if (!t) return
-    addProductsToRack(t.lines.map((line) => ({ product: line.product, qty: line.qty })))
+  function sendTierToRack(tierResult: TierResult) {
+    addProductsToRack(tierResult.lines.map((line) => ({ product: line.product, qty: line.qty })))
     onSentToRack?.()
   }
 
@@ -274,25 +282,34 @@ export function DesignerView({ catalog, onSentToRack }: Props) {
           <div>
             <label className="block text-sm font-medium text-slate-700">Бренд оборудования</label>
             <p className="mt-0.5 text-xs text-slate-400">
-              По умолчанию подбираем лучшую цену среди всех брендов. Выберите конкретный бренд — и все три варианта
-              (бюджетный/оптимальный/премиум) будут собраны на его оборудовании, где это есть в каталоге.
+              По умолчанию подбираем лучшую цену среди всех брендов. Отметьте один или несколько брендов галочкой —
+              под каждый появится своя строка из трёх вариантов (бюджетный/оптимальный/премиум) на его оборудовании,
+              чтобы сравнить бренды между собой.
             </p>
             <div className="mt-2 flex flex-wrap gap-1.5">
-              {BRAND_OPTIONS.map((b) => {
-                const active = input.preferredBrand === b
+              <button
+                type="button"
+                onClick={() => setSelectedBrands([])}
+                className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                  selectedBrands.length === 0
+                    ? 'border-blue-500 bg-blue-500 text-white'
+                    : 'border-slate-300 text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                Все бренды (авто)
+              </button>
+              {BRANDS.map((b) => {
+                const checked = selectedBrands.includes(b)
                 return (
-                  <button
+                  <label
                     key={b}
-                    type="button"
-                    onClick={() => set('preferredBrand', b)}
-                    className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
-                      active
-                        ? 'border-blue-500 bg-blue-500 text-white'
-                        : 'border-slate-300 text-slate-600 hover:bg-slate-100'
+                    className={`flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                      checked ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-300 text-slate-600 hover:bg-slate-100'
                     }`}
                   >
-                    {b === 'all' ? 'Все бренды (авто)' : b}
-                  </button>
+                    <input type="checkbox" className="h-3 w-3" checked={checked} onChange={() => toggleBrand(b)} />
+                    {b}
+                  </label>
                 )
               })}
             </div>
@@ -355,77 +372,88 @@ export function DesignerView({ catalog, onSentToRack }: Props) {
           <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">
             {BUILDING_TYPE_LABELS[input.buildingType]}, {totalAreaM2} м² на всё здание, {input.floorAreas.length} эт.
             {(input.buildingType === 'hotel' || input.buildingType === 'apartment') && ` (${input.roomsPerFloor} номеров/этаж)`}
-            {' '}— {result.concurrentDevices} одновременных клиентов ({input.workstations} рабочих мест +{' '}
-            {input.mobileDevices} мобильных устройств). Ниже — три готовых варианта, чтобы сравнить с клиентом на месте.
+            {' '}— {resultsByBrand[0].result.concurrentDevices} одновременных клиентов ({input.workstations} рабочих мест +{' '}
+            {input.mobileDevices} мобильных устройств).{' '}
+            {resultsByBrand.length > 1
+              ? 'Ниже — по три варианта на каждый выбранный бренд, чтобы сравнить бренды между собой.'
+              : 'Ниже — три готовых варианта, чтобы сравнить с клиентом на месте.'}
           </div>
 
-          <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
-            <b>Рекомендуем: {result.tiers.find((t) => t.tier === result.recommendedTier)?.tierLabel}.</b>{' '}
-            {result.recommendationReason}
-          </div>
+          {resultsByBrand.map(({ brand, result: r }) => (
+            <div key={brand} className="mb-6 print:break-inside-avoid">
+              {resultsByBrand.length > 1 && (
+                <h2 className="mb-2 text-base font-semibold text-slate-900">{brand}</h2>
+              )}
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            {TIER_ORDER.map((tier) => {
-              const t = result.tiers.find((r) => r.tier === tier)!
-              const accent = TIER_ACCENT[tier]
-              const isRecommended = tier === result.recommendedTier
-              return (
-                <div
-                  key={tier}
-                  className={`flex flex-col rounded-lg border-2 bg-white p-4 print:break-inside-avoid ${
-                    isRecommended ? 'border-emerald-400 shadow-md' : accent.border
-                  }`}
-                >
-                  <div className="mb-1 flex items-center justify-between">
-                    <span className={`rounded px-2 py-0.5 text-xs font-semibold ${accent.badge}`}>{t.tierLabel}</span>
-                    {isRecommended && (
-                      <span className="rounded bg-emerald-500 px-2 py-0.5 text-xs font-semibold text-white">
-                        Рекомендуем
-                      </span>
-                    )}
-                  </div>
-                  <p className="mb-2 text-xs text-slate-400">{t.brands.join(', ') || '—'}</p>
+              <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
+                <b>Рекомендуем: {r.tiers.find((t) => t.tier === r.recommendedTier)?.tierLabel}.</b>{' '}
+                {r.recommendationReason}
+              </div>
 
-                  <div className="mb-1 text-2xl font-bold text-slate-900">${t.totalUSD.toLocaleString()}</div>
-                  <p className="mb-2 text-xs text-slate-400">
-                    ≈${t.usdPerClient.toFixed(1)} на одного одновременного клиента
-                  </p>
-                  {input.maxBudgetUSD > 0 && (
-                    <p className={`mb-2 text-xs font-medium ${t.fitsBudget ? 'text-emerald-600' : 'text-red-600'}`}>
-                      {t.fitsBudget ? '✓ В бюджете' : `Превышает бюджет на $${t.overBudgetUSD.toLocaleString()}`}
-                    </p>
-                  )}
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                {TIER_ORDER.map((tier) => {
+                  const t = r.tiers.find((rr) => rr.tier === tier)!
+                  const accent = TIER_ACCENT[tier]
+                  const isRecommended = tier === r.recommendedTier
+                  return (
+                    <div
+                      key={tier}
+                      className={`flex flex-col rounded-lg border-2 bg-white p-4 print:break-inside-avoid ${
+                        isRecommended ? 'border-emerald-400 shadow-md' : accent.border
+                      }`}
+                    >
+                      <div className="mb-1 flex items-center justify-between">
+                        <span className={`rounded px-2 py-0.5 text-xs font-semibold ${accent.badge}`}>{t.tierLabel}</span>
+                        {isRecommended && (
+                          <span className="rounded bg-emerald-500 px-2 py-0.5 text-xs font-semibold text-white">
+                            Рекомендуем
+                          </span>
+                        )}
+                      </div>
+                      <p className="mb-2 text-xs text-slate-400">{t.brands.join(', ') || '—'}</p>
 
-                  <ul className="mb-3 flex-1 space-y-2 text-sm">
-                    {t.lines.map((line, i) => (
-                      <li key={i} className="border-t border-slate-100 pt-2 first:border-0 first:pt-0" title={line.reason}>
-                        <div className="font-medium text-slate-900">
-                          {line.product ? `${line.product.brand} ${line.product.model}` : line.role}
-                          {line.qty > 1 ? ` × ${line.qty}` : ''}
+                      <div className="mb-1 text-2xl font-bold text-slate-900">${t.totalUSD.toLocaleString()}</div>
+                      <p className="mb-2 text-xs text-slate-400">
+                        ≈${t.usdPerClient.toFixed(1)} на одного одновременного клиента
+                      </p>
+                      {input.maxBudgetUSD > 0 && (
+                        <p className={`mb-2 text-xs font-medium ${t.fitsBudget ? 'text-emerald-600' : 'text-red-600'}`}>
+                          {t.fitsBudget ? '✓ В бюджете' : `Превышает бюджет на $${t.overBudgetUSD.toLocaleString()}`}
+                        </p>
+                      )}
+
+                      <ul className="mb-3 flex-1 space-y-2 text-sm">
+                        {t.lines.map((line, i) => (
+                          <li key={i} className="border-t border-slate-100 pt-2 first:border-0 first:pt-0" title={line.reason}>
+                            <div className="font-medium text-slate-900">
+                              {line.product ? `${line.product.brand} ${line.product.model}` : line.role}
+                              {line.qty > 1 ? ` × ${line.qty}` : ''}
+                            </div>
+                            <div className="text-xs text-slate-400">{line.role}</div>
+                          </li>
+                        ))}
+                      </ul>
+
+                      {t.warnings.length > 0 && (
+                        <div className="mb-2 space-y-1 rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+                          {t.warnings.map((w, i) => (
+                            <div key={i}>⚠ {w}</div>
+                          ))}
                         </div>
-                        <div className="text-xs text-slate-400">{line.role}</div>
-                      </li>
-                    ))}
-                  </ul>
+                      )}
 
-                  {t.warnings.length > 0 && (
-                    <div className="mb-2 space-y-1 rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
-                      {t.warnings.map((w, i) => (
-                        <div key={i}>⚠ {w}</div>
-                      ))}
+                      <button
+                        onClick={() => sendTierToRack(t)}
+                        className="no-print mt-1 rounded border border-slate-300 px-2 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                      >
+                        Добавить в «Дизайнер стойки» →
+                      </button>
                     </div>
-                  )}
-
-                  <button
-                    onClick={() => sendTierToRack(tier)}
-                    className="no-print mt-1 rounded border border-slate-300 px-2 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
-                  >
-                    Добавить в «Дизайнер стойки» →
-                  </button>
-                </div>
-              )
-            })}
-          </div>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
 
           <button
             onClick={() => window.print()}
