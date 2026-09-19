@@ -37,8 +37,7 @@ const TIER_ACCENT: Record<Tier, { border: string; badge: string; ring: string }>
 export function DesignerView({ catalog, onSentToRack }: Props) {
   const [input, setInput] = useState<DesignerInput>({
     buildingType: 'office',
-    totalAreaM2: 500,
-    floors: 2,
+    floorAreas: [250, 250],
     wallMaterial: 'drywall',
     roomsPerFloor: 20,
     workstations: 15,
@@ -52,9 +51,32 @@ export function DesignerView({ catalog, onSentToRack }: Props) {
   })
 
   const result = designNetworkTiers(input, catalog)
+  const totalAreaM2 = input.floorAreas.reduce((sum, a) => sum + a, 0)
 
   function set<K extends keyof DesignerInput>(key: K, value: DesignerInput[K]) {
     setInput((prev) => ({ ...prev, [key]: value }))
+  }
+
+  function setFloorArea(index: number, area: number) {
+    setInput((prev) => {
+      const floorAreas = [...prev.floorAreas]
+      floorAreas[index] = Math.max(0, area)
+      return { ...prev, floorAreas }
+    })
+  }
+
+  function addFloor() {
+    setInput((prev) => ({
+      ...prev,
+      floorAreas: [...prev.floorAreas, prev.floorAreas[prev.floorAreas.length - 1] ?? 100],
+    }))
+  }
+
+  function removeFloor(index: number) {
+    setInput((prev) => {
+      if (prev.floorAreas.length <= 1) return prev
+      return { ...prev, floorAreas: prev.floorAreas.filter((_, i) => i !== index) }
+    })
   }
 
   function sendTierToRack(tier: Tier) {
@@ -92,32 +114,46 @@ export function DesignerView({ catalog, onSentToRack }: Props) {
             </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-slate-700">Площадь всего здания, м²</label>
-              <input
-                type="number"
-                min={10}
-                className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
-                value={input.totalAreaM2}
-                onChange={(e) => set('totalAreaM2', Number(e.target.value))}
-              />
+          <div>
+            <label className="block text-sm font-medium text-slate-700">Этажи и площадь каждого</label>
+            <p className="mt-0.5 text-xs text-slate-400">
+              У каждого этажа своя площадь — точки доступа считаются отдельно под каждый этаж, а не по средней
+              площади здания.
+            </p>
+            <div className="mt-2 space-y-1.5">
+              {input.floorAreas.map((area, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <span className="w-14 shrink-0 text-sm text-slate-600">Этаж {i + 1}</span>
+                  <input
+                    type="number"
+                    min={10}
+                    className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                    value={area}
+                    onChange={(e) => setFloorArea(i, Number(e.target.value))}
+                  />
+                  <span className="shrink-0 text-xs text-slate-400">м²</span>
+                  <button
+                    type="button"
+                    onClick={() => removeFloor(i)}
+                    disabled={input.floorAreas.length <= 1}
+                    className="shrink-0 text-xs text-red-600 hover:underline disabled:opacity-30"
+                  >
+                    Убрать
+                  </button>
+                </div>
+              ))}
             </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700">Этажей</label>
-              <input
-                type="number"
-                min={1}
-                className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
-                value={input.floors}
-                onChange={(e) => set('floors', Number(e.target.value))}
-              />
-            </div>
+            <button
+              type="button"
+              onClick={addFloor}
+              className="mt-2 rounded border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100"
+            >
+              + Добавить этаж
+            </button>
+            <p className="mt-2 text-xs text-slate-400">
+              Итого: {totalAreaM2.toLocaleString()} м² на {input.floorAreas.length} эт.
+            </p>
           </div>
-          <p className="-mt-2 text-xs text-slate-400">
-            Указываете площадь <b>всего здания целиком</b> (сумма по всем этажам) — сейчас это ≈
-            {Math.round(input.totalAreaM2 / Math.max(1, input.floors)).toLocaleString()} м² на один этаж.
-          </p>
 
           {(input.buildingType === 'hotel' || input.buildingType === 'apartment') && (
             <div>
@@ -300,7 +336,7 @@ export function DesignerView({ catalog, onSentToRack }: Props) {
           </div>
 
           <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">
-            {BUILDING_TYPE_LABELS[input.buildingType]}, {input.totalAreaM2} м² на всё здание, {input.floors} эт.
+            {BUILDING_TYPE_LABELS[input.buildingType]}, {totalAreaM2} м² на всё здание, {input.floorAreas.length} эт.
             {(input.buildingType === 'hotel' || input.buildingType === 'apartment') && ` (${input.roomsPerFloor} номеров/этаж)`}
             {' '}— {result.concurrentDevices} одновременных клиентов ({input.workstations} рабочих мест +{' '}
             {input.mobileDevices} мобильных устройств). Ниже — три готовых варианта, чтобы сравнить с клиентом на месте.
@@ -340,7 +376,7 @@ export function DesignerView({ catalog, onSentToRack }: Props) {
 
                   <ul className="mb-3 flex-1 space-y-2 text-sm">
                     {t.lines.map((line, i) => (
-                      <li key={i} className="border-t border-slate-100 pt-2 first:border-0 first:pt-0">
+                      <li key={i} className="border-t border-slate-100 pt-2 first:border-0 first:pt-0" title={line.reason}>
                         <div className="font-medium text-slate-900">
                           {line.product ? `${line.product.brand} ${line.product.model}` : line.role}
                           {line.qty > 1 ? ` × ${line.qty}` : ''}

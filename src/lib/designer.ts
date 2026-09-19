@@ -31,9 +31,8 @@ export const BUILDING_TYPE_LABELS: Record<BuildingType, string> = {
 
 export interface DesignerInput {
   buildingType: BuildingType
-  /** Площадь всего здания (сумма по всем этажам), м² */
-  totalAreaM2: number
-  floors: number
+  /** Площадь каждого этажа отдельно, м² — длина массива = число этажей. */
+  floorAreas: number[]
   wallMaterial: WallMaterial
   /** Для гостиниц/апартаментов: номеров на одном этаже — уточняет расчёт точек доступа по коридору */
   roomsPerFloor: number
@@ -80,10 +79,7 @@ const ROOMS_PER_AP: Record<WallMaterial, number> = {
   concrete: 4,
 }
 
-const DEVICE_CAPACITY_PER_AP = 25
 const POE_PORT_HEADROOM = 1.15
-/** Рабочее место (ПК/ноутбук) нагружает Wi-Fi заметно сильнее телефона — учитываем это при выборе уровня точки доступа. */
-const WORKSTATION_LOAD_WEIGHT = 1.6
 
 /**
  * Ищет товар по id, а если он был удалён/переименован в каталоге — берёт
@@ -236,20 +232,26 @@ export interface DesignerTiersResult {
 function designTier(input: DesignerInput, catalog: Product[], tier: Tier): TierResult {
   const warnings: string[] = []
   const concurrentDevices = input.workstations + input.mobileDevices
+  const floors = Math.max(1, input.floorAreas.length)
   const areaPerAP = AREA_PER_AP[input.wallMaterial]
-  const areaPerFloor = input.totalAreaM2 / Math.max(1, input.floors)
-  const apsPerFloorByArea = Math.max(1, Math.ceil(areaPerFloor / areaPerAP))
 
   const isHotelLike = input.buildingType === 'hotel' || input.buildingType === 'apartment'
   const apsPerFloorByRooms =
     isHotelLike && input.roomsPerFloor > 0 ? Math.ceil(input.roomsPerFloor / ROOMS_PER_AP[input.wallMaterial]) : 0
-  const apsPerFloor = Math.max(apsPerFloorByArea, apsPerFloorByRooms)
-  let apCount = apsPerFloor * input.floors
+
+  // Считаем точки доступа отдельно на каждый этаж по его собственной площади,
+  // а не по средней площади здания — у этажей разного размера разная потребность.
+  const floorPlan = input.floorAreas.map((areaM2, i) => {
+    const apsByArea = Math.max(1, Math.ceil(areaM2 / areaPerAP))
+    const aps = Math.max(apsByArea, apsPerFloorByRooms)
+    return { floorNo: i + 1, areaM2, aps }
+  })
+  let apCount = floorPlan.reduce((sum, f) => sum + f.aps, 0)
 
   const apsByDevices = Math.ceil(concurrentDevices / DEVICE_CAPACITY_BY_TIER[tier])
   if (apsByDevices > apCount) apCount = apsByDevices
 
-  const outdoorAPs = input.outdoorCoverage ? Math.max(2, Math.ceil(input.floors / 2)) : 0
+  const outdoorAPs = input.outdoorCoverage ? Math.max(2, Math.ceil(floors / 2)) : 0
 
   const { product: apProduct, note: apNote } = pickForTierAndBrand(catalog, 'ap', tier, input.preferredBrand, input.apMountType)
   const lines: DesignerLine[] = []
@@ -263,15 +265,16 @@ function designTier(input: DesignerInput, catalog: Product[], tier: Tier): TierR
 
   if (apProduct) {
     brands.add(apProduct.brand)
-    const byRoomsWins = apsPerFloorByRooms > apsPerFloorByArea
-    const coverageReason = byRoomsWins
-      ? `${input.roomsPerFloor} номеров/этаж ÷ ~${ROOMS_PER_AP[input.wallMaterial]} номеров на точку`
-      : `${areaPerFloor.toFixed(0)} м²/этаж ÷ ${areaPerAP} м²/точка`
+    const perFloorText = floorPlan.map((f) => `эт.${f.floorNo}: ${f.areaM2} м² → ${f.aps} AP`).join(', ')
+    const coverageReason =
+      apsPerFloorByRooms > 0
+        ? `не менее ${input.roomsPerFloor} номеров/этаж ÷ ~${ROOMS_PER_AP[input.wallMaterial]} номеров на точку`
+        : `по площади каждого этажа ÷ ${areaPerAP} м²/точка`
     lines.push({
       role: 'Точки доступа Wi-Fi',
       product: apProduct,
       qty: apCount,
-      reason: `${input.floors} эт. × ~${apsPerFloor} AP/этаж (${coverageReason}) — до ${DEVICE_CAPACITY_BY_TIER[tier]} устройств на точку в этом сегменте, всего ${concurrentDevices} одновременных клиентов`,
+      reason: `${perFloorText} (${coverageReason}) — до ${DEVICE_CAPACITY_BY_TIER[tier]} устройств на точку в этом сегменте, всего ${concurrentDevices} одновременных клиентов`,
     })
   } else {
     warnings.push(`В сегменте «${TIER_LABELS[tier]}» нет точки доступа в каталоге.`)
@@ -397,154 +400,6 @@ export function designNetworkTiers(input: DesignerInput, catalog: Product[]): De
   }
 
   return { tiers, recommendedTier, recommendationReason, concurrentDevices }
-}
-
-export function designNetwork(input: DesignerInput, catalog: Product[]): DesignerResult {
-  const warnings: string[] = []
-  const concurrentDevices = input.workstations + input.mobileDevices
-  const areaPerAP = AREA_PER_AP[input.wallMaterial]
-  const areaPerFloor = input.totalAreaM2 / Math.max(1, input.floors)
-  const apsPerFloorByArea = Math.max(1, Math.ceil(areaPerFloor / areaPerAP))
-
-  const isHotelLike = input.buildingType === 'hotel' || input.buildingType === 'apartment'
-  const apsPerFloorByRooms =
-    isHotelLike && input.roomsPerFloor > 0 ? Math.ceil(input.roomsPerFloor / ROOMS_PER_AP[input.wallMaterial]) : 0
-  const apsPerFloor = Math.max(apsPerFloorByArea, apsPerFloorByRooms)
-  let apCount = apsPerFloor * input.floors
-
-  const apsByDevices = Math.ceil(concurrentDevices / DEVICE_CAPACITY_PER_AP)
-  if (apsByDevices > apCount) {
-    apCount = apsByDevices
-  }
-
-  const outdoorAPs = input.outdoorCoverage ? Math.max(2, Math.ceil(input.floors / 2)) : 0
-
-  // Выбор модели точки доступа: площадь/материал стен + плотность клиентов,
-  // где рабочие места (видеозвонки, VPN, передача файлов) весят тяжелее телефонов
-  const weightedLoad = input.workstations * WORKSTATION_LOAD_WEIGHT + input.mobileDevices
-  const loadPerAP = weightedLoad / Math.max(1, apCount)
-  let apTier: 'budget' | 'mid' | 'premium' = 'budget'
-  if (loadPerAP > 25 || areaPerAP >= 150) apTier = 'premium'
-  else if (loadPerAP > 12 || input.wallMaterial !== 'open') apTier = 'mid'
-  const apIdByTier = { budget: 'tpl-eap225', mid: 'tpl-eap670', premium: 'tpl-eap660-hd' } as const
-  const apProduct = findProduct(catalog, apIdByTier[apTier], 'ap', apTier)
-
-  const lines: DesignerLine[] = []
-
-  if (apProduct) {
-    const byRoomsWins = apsPerFloorByRooms > apsPerFloorByArea
-    const coverageReason = byRoomsWins
-      ? `${input.roomsPerFloor} номеров/этаж ÷ ~${ROOMS_PER_AP[input.wallMaterial]} номеров на точку (стены «${wallMaterialLabel(input.wallMaterial)}»)`
-      : `по покрытию: ${areaPerFloor.toFixed(0)} м²/этаж ÷ ${areaPerAP} м²/точка (стены «${wallMaterialLabel(input.wallMaterial)}»)`
-    lines.push({
-      role: 'Точки доступа Wi-Fi (в помещении)',
-      product: apProduct,
-      qty: apCount,
-      reason: `${input.floors} эт. × ~${apsPerFloor} AP/этаж — ${coverageReason}, с учётом ${input.workstations} рабочих мест и ${input.mobileDevices} мобильных устройств`,
-    })
-  } else {
-    warnings.push('В каталоге нет подходящей точки доступа — добавьте товары категории «Точка доступа» в «Каталог».')
-  }
-
-  if (outdoorAPs > 0) {
-    const outdoorProduct = findProduct(catalog, 'tpl-eap225-outdoor', 'ap', 'mid')
-    if (outdoorProduct) {
-      lines.push({
-        role: 'Точки доступа для улицы/двора',
-        product: outdoorProduct,
-        qty: outdoorAPs,
-        reason: 'Ориентировочно, для покрытия прилегающей территории (уточняйте по факту периметра)',
-      })
-    }
-  }
-
-  // Коммутация: под AP + под камеры, с запасом
-  const cameraCount = input.cameraTier === 'none' ? 0 : input.cameraCount
-  const poePortsNeeded = Math.ceil((apCount + outdoorAPs + cameraCount) * POE_PORT_HEADROOM)
-
-  if (poePortsNeeded > 0) {
-    if (poePortsNeeded <= 8) {
-      const sw = findProduct(catalog, 'tpl-sg2210p', 'switch', 'budget')
-      if (sw) lines.push({ role: 'PoE-коммутатор', product: sw, qty: 1, reason: `Нужно ~${poePortsNeeded} PoE-портов с запасом` })
-    } else {
-      const swCount = Math.ceil(poePortsNeeded / 24)
-      const sw = findProduct(catalog, 'tpl-sg3428mp', 'switch', 'mid')
-      if (sw) {
-        lines.push({
-          role: 'PoE-коммутатор',
-          product: sw,
-          qty: swCount,
-          reason: `Нужно ~${poePortsNeeded} PoE-портов с запасом (24 порта на коммутатор)`,
-        })
-      }
-    }
-  }
-
-  // Роутер/шлюз по количеству пользователей
-  let routerTier: 'budget' | 'mid' | 'premium' = 'budget'
-  let routerId = 'tpl-er605'
-  if (concurrentDevices > 150) {
-    routerTier = 'premium'
-    routerId = 'tpl-er8411'
-  } else if (concurrentDevices > 50) {
-    routerTier = 'mid'
-    routerId = 'tpl-er7206'
-  }
-  const router = findProduct(catalog, routerId, 'router', routerTier)
-  if (router) {
-    lines.push({
-      role: 'Роутер / шлюз',
-      product: router,
-      qty: 1,
-      reason: `Расчёт на ~${concurrentDevices} одновременных пользователей сети (${input.workstations} рабочих мест + ${input.mobileDevices} мобильных)`,
-    })
-  }
-
-  // Контроллер Omada — для централизованной настройки и автоматического роуминга между AP
-  if (apCount + outdoorAPs > 1) {
-    const controller = findProduct(catalog, 'tpl-oc200', 'other', 'budget')
-    if (controller) {
-      lines.push({
-        role: 'Контроллер сети (аналог Omada Designer)',
-        product: controller,
-        qty: 1,
-        reason: 'Централизованная настройка и мониторинг всех точек доступа и коммутаторов из одного приложения',
-      })
-    }
-  }
-
-  // Камеры и NVR
-  if (input.cameraTier !== 'none' && cameraCount > 0) {
-    const cameraTierMap: Record<Exclude<CameraTier, 'none'>, 'budget' | 'mid' | 'premium'> = {
-      budget: 'budget',
-      standard: 'mid',
-      premium: 'premium',
-    }
-    const priceTier = cameraTierMap[input.cameraTier]
-    const cameraPool = catalog.filter((p) => p.category === 'camera' && p.brand === input.cameraBrand)
-    const camera = cameraPool.find((p) => p.priceCategory === priceTier) ?? cameraPool[0]
-    if (camera) {
-      lines.push({ role: 'IP-камеры', product: camera, qty: cameraCount, reason: `Выбрано по бренду ${input.cameraBrand} и уровню «${cameraTierLabel(input.cameraTier)}»` })
-    } else {
-      warnings.push(`В каталоге нет камер бренда ${input.cameraBrand} — добавьте их в «Каталог».`)
-    }
-
-    const nvrPool = catalog.filter((p) => p.category === 'nvr' && p.brand === input.cameraBrand)
-    const nvr = nvrPool.find((p) => {
-      const channelsStr = p.specs['Каналы'] ?? ''
-      const channels = parseInt(channelsStr, 10)
-      return !Number.isNaN(channels) && channels >= cameraCount
-    }) ?? nvrPool.sort((a, b) => b.priceUSD - a.priceUSD)[0]
-    if (nvr) {
-      lines.push({ role: 'Видеорегистратор (NVR)', product: nvr, qty: 1, reason: `Нужно не менее ${cameraCount} каналов` })
-    } else {
-      warnings.push('В каталоге нет подходящего NVR на нужное число каналов.')
-    }
-  }
-
-  const totalUSD = lines.reduce((sum, l) => sum + (l.product ? l.product.priceUSD * l.qty : 0), 0)
-
-  return { lines, apCount: apCount + outdoorAPs, warnings, totalUSD }
 }
 
 export function wallMaterialLabel(m: WallMaterial) {
