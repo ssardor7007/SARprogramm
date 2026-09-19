@@ -47,6 +47,8 @@ export function DesignerView({ catalog, onSentToRack }: Props) {
     workstations: 15,
     mobileDevices: 25,
     outdoorCoverage: false,
+    outdoorLengthM: 20,
+    outdoorWidthM: 10,
     cameraTier: SHOW_VIDEO_SURVEILLANCE ? 'standard' : 'none',
     cameraCount: 8,
     cameraBrand: 'Hikvision',
@@ -279,14 +281,46 @@ export function DesignerView({ catalog, onSentToRack }: Props) {
             />
           </div>
 
-          <label className="flex items-center gap-2 text-sm text-slate-700">
-            <input
-              type="checkbox"
-              checked={input.outdoorCoverage}
-              onChange={(e) => set('outdoorCoverage', e.target.checked)}
-            />
-            Нужна Wi-Fi зона на улице (двор, парковка, терраса)
-          </label>
+          <div>
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={input.outdoorCoverage}
+                onChange={(e) => set('outdoorCoverage', e.target.checked)}
+              />
+              Нужна Wi-Fi зона на улице (двор, парковка, терраса)
+            </label>
+
+            {input.outdoorCoverage && (
+              <div className="mt-2 rounded border border-slate-200 p-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs text-slate-500">Длина, м</label>
+                    <input
+                      type="number"
+                      min={1}
+                      className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                      value={input.outdoorLengthM}
+                      onChange={(e) => set('outdoorLengthM', Math.max(0, Number(e.target.value)))}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-500">Ширина, м</label>
+                    <input
+                      type="number"
+                      min={1}
+                      className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                      value={input.outdoorWidthM}
+                      onChange={(e) => set('outdoorWidthM', Math.max(0, Number(e.target.value)))}
+                    />
+                  </div>
+                </div>
+                <p className="mt-1.5 text-xs text-slate-400">
+                  Площадь: {(input.outdoorLengthM * input.outdoorWidthM).toLocaleString()} м²
+                </p>
+              </div>
+            )}
+          </div>
 
           <div>
             <label className="block text-sm font-medium text-slate-700">Монтаж точки доступа</label>

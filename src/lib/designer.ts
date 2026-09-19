@@ -53,6 +53,9 @@ export interface DesignerInput {
   /** Телефоны, планшеты и прочие лёгкие онлайн-устройства */
   mobileDevices: number
   outdoorCoverage: boolean
+  /** Промеры зоны покрытия на улице (двор/парковка/терраса) — учитываются только когда outdoorCoverage = true. */
+  outdoorLengthM: number
+  outdoorWidthM: number
   cameraTier: CameraTier
   cameraCount: number
   cameraBrand: 'Hikvision' | 'Dahua'
@@ -84,6 +87,9 @@ export const AREA_PER_AP: Record<WallMaterial, number> = {
   brick: 90,
   concrete: 70,
 }
+
+/** Уличная точка доступа без внутренних стен на пути сигнала уверенно держит заметно большую площадь, чем в помещении. */
+const OUTDOOR_AREA_PER_AP = 300
 
 /** Номеров гостиницы, которые уверенно накрывает одна точка доступа в коридоре — зависит от толщины стен между номерами */
 const ROOMS_PER_AP: Record<WallMaterial, number> = {
@@ -273,7 +279,6 @@ export interface DesignerTiersResult {
 function designTier(input: DesignerInput, catalog: Product[], tier: Tier): TierResult {
   const warnings: string[] = []
   const concurrentDevices = input.workstations + input.mobileDevices
-  const floorCount = Math.max(1, input.floors.length)
   const baseAreaPerAP = AREA_PER_AP[input.wallMaterial]
 
   const isHotelLike = input.buildingType === 'hotel' || input.buildingType === 'apartment'
@@ -294,7 +299,8 @@ function designTier(input: DesignerInput, catalog: Product[], tier: Tier): TierR
   const apsByDevices = Math.ceil(concurrentDevices / DEVICE_CAPACITY_BY_TIER[tier])
   if (apsByDevices > apCount) apCount = apsByDevices
 
-  const outdoorAPs = input.outdoorCoverage ? Math.max(2, Math.ceil(floorCount / 2)) : 0
+  const outdoorAreaM2 = input.outdoorLengthM * input.outdoorWidthM
+  const outdoorAPs = input.outdoorCoverage ? Math.max(1, Math.ceil(outdoorAreaM2 / OUTDOOR_AREA_PER_AP)) : 0
 
   const { product: apProduct, note: apNote } = pickForTierAndBrand(catalog, 'ap', tier, input.preferredBrand, input.apMountType)
   const lines: DesignerLine[] = []
@@ -333,7 +339,7 @@ function designTier(input: DesignerInput, catalog: Product[], tier: Tier): TierR
         role: 'Точки доступа для улицы/двора',
         product: outdoorProduct,
         qty: outdoorAPs,
-        reason: 'Ориентировочно, для покрытия прилегающей территории — модель с уличным (наружным) исполнением',
+        reason: `${input.outdoorLengthM}×${input.outdoorWidthM} м (${outdoorAreaM2.toFixed(0)} м²) ÷ ${OUTDOOR_AREA_PER_AP} м²/точка — модель с уличным (наружным) исполнением`,
       })
     }
   }
