@@ -25,7 +25,7 @@ interface Props {
 
 const WALL_OPTIONS: WallMaterial[] = ['open', 'drywall', 'brick', 'concrete']
 const BRAND_OPTIONS: BrandFilter[] = ['all', ...BRANDS]
-const AP_MOUNT_OPTIONS: ApMountType[] = ['any', 'ceiling', 'wall']
+const AP_MOUNT_OPTIONS: ApMountType[] = ['any', 'ceiling', 'wall', 'outdoor']
 const CAMERA_TIERS: CameraTier[] = ['none', 'budget', 'standard', 'premium']
 const TIER_ORDER: Tier[] = ['budget', 'mid', 'premium']
 const TIER_ACCENT: Record<Tier, { border: string; badge: string; ring: string }> = {

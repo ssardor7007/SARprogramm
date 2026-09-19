@@ -5,12 +5,13 @@ export type Tier = PriceCategory
 /** 'all' — подбирать лучший вариант по цене среди всех брендов (как раньше); конкретный бренд — держать все три сегмента на его оборудовании, где это возможно. */
 export type BrandFilter = Brand | 'all'
 /** 'any' — не фильтровать по способу установки; иначе исключать точки доступа другого явно указанного монтажа. */
-export type ApMountType = 'any' | 'ceiling' | 'wall'
+export type ApMountType = 'any' | 'ceiling' | 'wall' | 'outdoor'
 
 export const AP_MOUNT_LABELS: Record<ApMountType, string> = {
   any: 'Любой (авто)',
   ceiling: 'Потолочная',
   wall: 'Настенная',
+  outdoor: 'Наружная',
 }
 
 export const TIER_LABELS: Record<Tier, string> = {
@@ -106,25 +107,35 @@ function isPoeSwitch(p: Product): boolean {
   return /PoE/i.test(p.specs['Характеристики'] ?? '')
 }
 
+type ApMountKind = 'ceiling' | 'wall' | 'outdoor' | 'desktop' | 'indoor' | 'unspecified'
+
 /** Способ установки, который явно следует из модели/описания точки доступа — если он вообще указан. */
-function classifyApMount(p: Product): 'ceiling' | 'wall' | 'outdoor' | 'desktop' | 'unspecified' {
+function classifyApMount(p: Product): ApMountKind {
   const text = `${p.model} ${p.specs['Характеристики'] ?? ''}`
   if (/wall|настенн/i.test(text)) return 'wall'
   if (/ceiling|celling|потолочн/i.test(text)) return 'ceiling'
   if (/outdoor|наружн|уличн/i.test(text)) return 'outdoor'
   if (/desktop|настольн/i.test(text)) return 'desktop'
+  // «внутренние антенны» — про антенну, не про монтаж, поэтому ищем именно
+  // «внутренняя точка доступа»/«indoor», а не голое «внутренн» (\w не берёт
+  // кириллицу, поэтому хвост слова матчим явным классом символов).
+  if (/\bindoor\b|внутренн[а-яё]*\s+точ(?:ка|ку|ки)/i.test(text)) return 'indoor'
   return 'unspecified'
 }
 
 /**
  * Точку доступа без явно указанного способа установки в каталоге не отсекаем
- * (нет данных — не спорим), а вот с явно указанным потолочным/настенным/уличным/
- * настольным монтажом, не совпадающим с выбором клиента, — исключаем.
+ * (нет данных — не спорим). С явно указанным монтажом, не совпадающим с
+ * выбором клиента, — исключаем; «просто внутренняя» точка доступа (без
+ * уточнения потолок/стена) годится под оба комнатных варианта, но не под
+ * уличный.
  */
 function matchesApMount(p: Product, mountType: ApMountType): boolean {
   if (mountType === 'any') return true
   const kind = classifyApMount(p)
-  return kind === mountType || kind === 'unspecified'
+  if (kind === mountType || kind === 'unspecified') return true
+  if (kind === 'indoor') return mountType === 'ceiling' || mountType === 'wall'
+  return false
 }
 
 /** Сужает пул кандидатов под жёсткие требования роли: PoE у коммутатора, способ установки у точки доступа. */
@@ -280,13 +291,18 @@ function designTier(input: DesignerInput, catalog: Product[], tier: Tier): TierR
     warnings.push(`В сегменте «${TIER_LABELS[tier]}» нет точки доступа в каталоге.`)
   }
 
-  if (outdoorAPs > 0 && apProduct) {
-    lines.push({
-      role: 'Точки доступа для улицы/двора',
-      product: apProduct,
-      qty: outdoorAPs,
-      reason: 'Ориентировочно, для покрытия прилегающей территории',
-    })
+  if (outdoorAPs > 0) {
+    const { product: outdoorProduct, note: outdoorNote } = pickForTierAndBrand(catalog, 'ap', tier, input.preferredBrand, 'outdoor')
+    if (outdoorNote) warnings.push(outdoorNote)
+    if (outdoorProduct) {
+      brands.add(outdoorProduct.brand)
+      lines.push({
+        role: 'Точки доступа для улицы/двора',
+        product: outdoorProduct,
+        qty: outdoorAPs,
+        reason: 'Ориентировочно, для покрытия прилегающей территории — модель с уличным (наружным) исполнением',
+      })
+    }
   }
 
   const cameraCount = input.cameraTier === 'none' ? 0 : input.cameraCount
