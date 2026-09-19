@@ -5,12 +5,14 @@ import {
   BUILDING_TYPE_LABELS,
   cameraTierLabel,
   designNetworkTiers,
+  floorAreaM2,
   wallMaterialLabel,
   type ApMountType,
   type BrandFilter,
   type BuildingType,
   type CameraTier,
   type DesignerInput,
+  type FloorSpec,
   type Tier,
   type TierResult,
   type WallMaterial,
@@ -37,9 +39,11 @@ const TIER_ACCENT: Record<Tier, { border: string; badge: string; ring: string }>
 export function DesignerView({ catalog, onSentToRack }: Props) {
   const [input, setInput] = useState<DesignerInput>({
     buildingType: 'office',
-    floorAreas: [250, 250],
+    floors: [
+      { lengthM: 20, widthM: 12.5, ceilingHeightM: 3, rooms: 20 },
+      { lengthM: 20, widthM: 12.5, ceilingHeightM: 3, rooms: 20 },
+    ],
     wallMaterial: 'drywall',
-    roomsPerFloor: 20,
     workstations: 15,
     mobileDevices: 25,
     outdoorCoverage: false,
@@ -58,7 +62,8 @@ export function DesignerView({ catalog, onSentToRack }: Props) {
     brand,
     result: designNetworkTiers({ ...input, preferredBrand: brand }, catalog),
   }))
-  const totalAreaM2 = input.floorAreas.reduce((sum, a) => sum + a, 0)
+  const totalAreaM2 = input.floors.reduce((sum, f) => sum + floorAreaM2(f), 0)
+  const isHotelLike = input.buildingType === 'hotel' || input.buildingType === 'apartment'
 
   function set<K extends keyof DesignerInput>(key: K, value: DesignerInput[K]) {
     setInput((prev) => ({ ...prev, [key]: value }))
@@ -68,25 +73,25 @@ export function DesignerView({ catalog, onSentToRack }: Props) {
     setSelectedBrands((prev) => (prev.includes(b) ? prev.filter((x) => x !== b) : [...prev, b]))
   }
 
-  function setFloorArea(index: number, area: number) {
+  function setFloorField<K extends keyof FloorSpec>(index: number, field: K, value: FloorSpec[K]) {
     setInput((prev) => {
-      const floorAreas = [...prev.floorAreas]
-      floorAreas[index] = Math.max(0, area)
-      return { ...prev, floorAreas }
+      const floors = [...prev.floors]
+      floors[index] = { ...floors[index], [field]: value }
+      return { ...prev, floors }
     })
   }
 
   function addFloor() {
-    setInput((prev) => ({
-      ...prev,
-      floorAreas: [...prev.floorAreas, prev.floorAreas[prev.floorAreas.length - 1] ?? 100],
-    }))
+    setInput((prev) => {
+      const last = prev.floors[prev.floors.length - 1]
+      return { ...prev, floors: [...prev.floors, last ? { ...last } : { lengthM: 10, widthM: 10, ceilingHeightM: 3, rooms: 0 }] }
+    })
   }
 
   function removeFloor(index: number) {
     setInput((prev) => {
-      if (prev.floorAreas.length <= 1) return prev
-      return { ...prev, floorAreas: prev.floorAreas.filter((_, i) => i !== index) }
+      if (prev.floors.length <= 1) return prev
+      return { ...prev, floors: prev.floors.filter((_, i) => i !== index) }
     })
   }
 
@@ -124,31 +129,72 @@ export function DesignerView({ catalog, onSentToRack }: Props) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700">Этажи и площадь каждого</label>
+            <label className="block text-sm font-medium text-slate-700">Этажи и промеры каждого</label>
             <p className="mt-0.5 text-xs text-slate-400">
-              У каждого этажа своя площадь — точки доступа считаются отдельно под каждый этаж, а не по средней
+              Вводите реальные промеры помещения — длину, ширину, высоту потолка{isHotelLike ? ' и число номеров' : ''} —
+              на каждый этаж отдельно. Точки доступа считаются по каждому этажу самостоятельно, а не по средней
               площади здания.
             </p>
-            <div className="mt-2 space-y-1.5">
-              {input.floorAreas.map((area, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <span className="w-14 shrink-0 text-sm text-slate-600">Этаж {i + 1}</span>
-                  <input
-                    type="number"
-                    min={10}
-                    className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
-                    value={area}
-                    onChange={(e) => setFloorArea(i, Number(e.target.value))}
-                  />
-                  <span className="shrink-0 text-xs text-slate-400">м²</span>
-                  <button
-                    type="button"
-                    onClick={() => removeFloor(i)}
-                    disabled={input.floorAreas.length <= 1}
-                    className="shrink-0 text-xs text-red-600 hover:underline disabled:opacity-30"
-                  >
-                    Убрать
-                  </button>
+            <div className="mt-2 space-y-2">
+              {input.floors.map((f, i) => (
+                <div key={i} className="rounded border border-slate-200 p-2">
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <span className="text-sm font-medium text-slate-700">Этаж {i + 1}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeFloor(i)}
+                      disabled={input.floors.length <= 1}
+                      className="text-xs text-red-600 hover:underline disabled:opacity-30"
+                    >
+                      Убрать
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs text-slate-500">Длина, м</label>
+                      <input
+                        type="number"
+                        min={1}
+                        className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                        value={f.lengthM}
+                        onChange={(e) => setFloorField(i, 'lengthM', Math.max(0, Number(e.target.value)))}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-slate-500">Ширина, м</label>
+                      <input
+                        type="number"
+                        min={1}
+                        className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                        value={f.widthM}
+                        onChange={(e) => setFloorField(i, 'widthM', Math.max(0, Number(e.target.value)))}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-slate-500">Высота потолка, м</label>
+                      <input
+                        type="number"
+                        min={1}
+                        step={0.1}
+                        className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                        value={f.ceilingHeightM}
+                        onChange={(e) => setFloorField(i, 'ceilingHeightM', Math.max(0, Number(e.target.value)))}
+                      />
+                    </div>
+                    {isHotelLike && (
+                      <div>
+                        <label className="block text-xs text-slate-500">Номеров / квартир</label>
+                        <input
+                          type="number"
+                          min={0}
+                          className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                          value={f.rooms}
+                          onChange={(e) => setFloorField(i, 'rooms', Math.max(0, Number(e.target.value)))}
+                        />
+                      </div>
+                    )}
+                  </div>
+                  <p className="mt-1.5 text-xs text-slate-400">Площадь: {floorAreaM2(f).toFixed(0)} м²</p>
                 </div>
               ))}
             </div>
@@ -160,26 +206,15 @@ export function DesignerView({ catalog, onSentToRack }: Props) {
               + Добавить этаж
             </button>
             <p className="mt-2 text-xs text-slate-400">
-              Итого: {totalAreaM2.toLocaleString()} м² на {input.floorAreas.length} эт.
+              Итого: {totalAreaM2.toLocaleString()} м² на {input.floors.length} эт.
             </p>
-          </div>
-
-          {(input.buildingType === 'hotel' || input.buildingType === 'apartment') && (
-            <div>
-              <label className="block text-sm font-medium text-slate-700">Номеров / квартир на одном этаже</label>
-              <input
-                type="number"
-                min={1}
-                className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
-                value={input.roomsPerFloor}
-                onChange={(e) => set('roomsPerFloor', Math.max(0, Number(e.target.value)))}
-              />
+            {isHotelLike && (
               <p className="mt-1 text-xs text-slate-400">
-                У гостиниц много маленьких номеров с несущими стенами между ними — точек доступа обычно нужно больше, чем
-                по одной лишь площади этажа. Берём более осторожную из двух оценок.
+                У гостиниц много маленьких номеров с несущими стенами между ними — точек доступа обычно нужно
+                больше, чем по одной лишь площади этажа. Берём более осторожную из двух оценок на каждом этаже.
               </p>
-            </div>
-          )}
+            )}
+          </div>
 
           <div>
             <label className="block text-sm font-medium text-slate-700">Материал стен / перегородок</label>
@@ -370,8 +405,8 @@ export function DesignerView({ catalog, onSentToRack }: Props) {
           </div>
 
           <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">
-            {BUILDING_TYPE_LABELS[input.buildingType]}, {totalAreaM2} м² на всё здание, {input.floorAreas.length} эт.
-            {(input.buildingType === 'hotel' || input.buildingType === 'apartment') && ` (${input.roomsPerFloor} номеров/этаж)`}
+            {BUILDING_TYPE_LABELS[input.buildingType]}, {totalAreaM2.toLocaleString()} м² на всё здание, {input.floors.length} эт.
+            {isHotelLike && ` (${input.floors.reduce((sum, f) => sum + f.rooms, 0)} номеров всего)`}
             {' '}— {resultsByBrand[0].result.concurrentDevices} одновременных клиентов ({input.workstations} рабочих мест +{' '}
             {input.mobileDevices} мобильных устройств).{' '}
             {resultsByBrand.length > 1
