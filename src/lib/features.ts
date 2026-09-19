@@ -1,21 +1,12 @@
-import {
-  CATEGORY_LABELS,
-  COMPETITOR_BRANDS,
-  OWN_BRANDS,
-  type Category,
-  type CompetitorBrand,
-  type CompetitorProduct,
-  type OwnBrand,
-  type Product,
-} from '../types'
+import { BRANDS, CATEGORY_LABELS, type Brand, type Category } from '../types'
 
 /**
- * Пока компания фокусируется только на сетевом оборудовании, раздел
- * видеонаблюдения (камеры/NVR, Vitek/Hikvision, Dahua) скрыт из интерфейса.
- * Все данные и компоненты на месте — верните true, когда будете готовы
- * снова продавать видеонаблюдение через этот инструмент.
+ * Переключатель раздела видеонаблюдения (камеры/NVR). Площадка теперь
+ * охватывает оба направления — сетевое оборудование и видеонаблюдение —
+ * поэтому по умолчанию включено. Верните false, если снова нужно сузить
+ * фокус только на сети.
  */
-export const SHOW_VIDEO_SURVEILLANCE = false
+export const SHOW_VIDEO_SURVEILLANCE = true
 
 const VIDEO_CATEGORIES: Category[] = ['camera', 'nvr']
 
@@ -24,18 +15,7 @@ export function visibleCategories(): Category[] {
   return SHOW_VIDEO_SURVEILLANCE ? all : all.filter((c) => !VIDEO_CATEGORIES.includes(c))
 }
 
-export function visibleOwnBrands(): readonly OwnBrand[] {
-  return SHOW_VIDEO_SURVEILLANCE ? OWN_BRANDS : OWN_BRANDS.filter((b) => b === 'TP-Link')
-}
-
-export function visibleCompetitorBrands(): readonly CompetitorBrand[] {
-  return SHOW_VIDEO_SURVEILLANCE ? COMPETITOR_BRANDS : COMPETITOR_BRANDS.filter((b) => b !== 'Dahua')
-}
-
-export function filterOwnProducts(items: Product[]): Product[] {
-  return SHOW_VIDEO_SURVEILLANCE ? items : items.filter((p) => !VIDEO_CATEGORIES.includes(p.category))
-}
-
-export function filterCompetitorProducts(items: CompetitorProduct[]): CompetitorProduct[] {
-  return SHOW_VIDEO_SURVEILLANCE ? items : items.filter((p) => !VIDEO_CATEGORIES.includes(p.category))
+export function visibleBrands(): readonly Brand[] {
+  if (SHOW_VIDEO_SURVEILLANCE) return BRANDS
+  return BRANDS.filter((b) => b !== 'Hikvision' && b !== 'Dahua')
 }

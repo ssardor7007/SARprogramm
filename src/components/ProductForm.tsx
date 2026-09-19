@@ -1,30 +1,34 @@
 import { useState } from 'react'
 import { CATEGORY_LABELS, PRICE_CATEGORY_LABELS } from '../types'
-import type { Category, CompetitorBrand, CompetitorProduct, PriceCategory, Product } from '../types'
-import { visibleCategories, visibleCompetitorBrands } from '../lib/features'
+import type { Brand, Category, PriceCategory, Product } from '../types'
+import { visibleBrands, visibleCategories } from '../lib/features'
 import { genId } from '../lib/storage'
 import { Modal } from './Modal'
 import { SpecsEditor } from './SpecsEditor'
+import { StringListEditor } from './StringListEditor'
 
 interface Props {
-  initial?: CompetitorProduct
-  ownCatalog: Product[]
-  onSave: (product: CompetitorProduct) => void
+  initial?: Product
+  catalog: Product[]
+  onSave: (product: Product) => void
   onClose: () => void
 }
 
-const emptyProduct = (): CompetitorProduct => ({
-  id: genId('cmp'),
-  brand: 'Ruijie',
+const emptyProduct = (): Product => ({
+  id: genId('prd'),
+  brand: 'TP-Link',
   category: 'router',
   model: '',
   specs: {},
   priceUSD: 0,
   priceCategory: 'mid',
+  stock: 0,
+  pros: [],
+  cons: [],
 })
 
-export function CompetitorProductForm({ initial, ownCatalog, onSave, onClose }: Props) {
-  const [product, setProduct] = useState<CompetitorProduct>(initial ?? emptyProduct())
+export function ProductForm({ initial, catalog, onSave, onClose }: Props) {
+  const [product, setProduct] = useState<Product>(initial ?? emptyProduct())
 
   function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -33,10 +37,10 @@ export function CompetitorProductForm({ initial, ownCatalog, onSave, onClose }: 
     onClose()
   }
 
-  const sameCategoryOwn = ownCatalog.filter((p) => p.category === product.category)
+  const sameCategoryOther = catalog.filter((p) => p.category === product.category && p.id !== product.id)
 
   return (
-    <Modal title={initial ? 'Изменить товар конкурента' : 'Добавить товар конкурента'} onClose={onClose}>
+    <Modal title={initial ? 'Изменить товар' : 'Добавить товар в каталог'} onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -44,9 +48,9 @@ export function CompetitorProductForm({ initial, ownCatalog, onSave, onClose }: 
             <select
               className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
               value={product.brand}
-              onChange={(e) => setProduct({ ...product, brand: e.target.value as CompetitorBrand })}
+              onChange={(e) => setProduct({ ...product, brand: e.target.value as Brand })}
             >
-              {visibleCompetitorBrands().map((b) => (
+              {visibleBrands().map((b) => (
                 <option key={b} value={b}>
                   {b}
                 </option>
@@ -58,9 +62,7 @@ export function CompetitorProductForm({ initial, ownCatalog, onSave, onClose }: 
             <select
               className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
               value={product.category}
-              onChange={(e) =>
-                setProduct({ ...product, category: e.target.value as Category, recommendedOwnId: undefined })
-              }
+              onChange={(e) => setProduct({ ...product, category: e.target.value as Category, alternativeId: undefined })}
             >
               {visibleCategories().map((c) => (
                 <option key={c} value={c}>
@@ -71,17 +73,27 @@ export function CompetitorProductForm({ initial, ownCatalog, onSave, onClose }: 
           </div>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-slate-700">Модель</label>
-          <input
-            className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
-            value={product.model}
-            onChange={(e) => setProduct({ ...product, model: e.target.value })}
-            required
-          />
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-medium text-slate-700">Модель</label>
+            <input
+              className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+              value={product.model}
+              onChange={(e) => setProduct({ ...product, model: e.target.value })}
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700">Серия (необязательно)</label>
+            <input
+              className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+              value={product.series ?? ''}
+              onChange={(e) => setProduct({ ...product, series: e.target.value })}
+            />
+          </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           <div>
             <label className="block text-sm font-medium text-slate-700">Цена, $</label>
             <input
@@ -106,17 +118,27 @@ export function CompetitorProductForm({ initial, ownCatalog, onSave, onClose }: 
               ))}
             </select>
           </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700">Остаток, шт.</label>
+            <input
+              type="number"
+              min={0}
+              className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+              value={product.stock}
+              onChange={(e) => setProduct({ ...product, stock: Number(e.target.value) })}
+            />
+          </div>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-slate-700">Рекомендуемый аналог в своём каталоге</label>
+          <label className="block text-sm font-medium text-slate-700">Альтернатива в другом бренде (необязательно)</label>
           <select
             className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
-            value={product.recommendedOwnId ?? ''}
-            onChange={(e) => setProduct({ ...product, recommendedOwnId: e.target.value || undefined })}
+            value={product.alternativeId ?? ''}
+            onChange={(e) => setProduct({ ...product, alternativeId: e.target.value || undefined })}
           >
             <option value="">Подбирать автоматически</option>
-            {sameCategoryOwn.map((p) => (
+            {sameCategoryOther.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.brand} {p.model}
               </option>
@@ -135,6 +157,18 @@ export function CompetitorProductForm({ initial, ownCatalog, onSave, onClose }: 
         </div>
 
         <SpecsEditor specs={product.specs} onChange={(specs) => setProduct({ ...product, specs })} />
+        <StringListEditor
+          label="Плюсы"
+          items={product.pros}
+          onChange={(pros) => setProduct({ ...product, pros })}
+          placeholder="Например: дешевле, тот же контроллер"
+        />
+        <StringListEditor
+          label="Минусы"
+          items={product.cons}
+          onChange={(cons) => setProduct({ ...product, cons })}
+          placeholder="Например: нет 10G порта"
+        />
 
         <div>
           <label className="block text-sm font-medium text-slate-700">Заметка (необязательно)</label>

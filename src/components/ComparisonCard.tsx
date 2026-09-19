@@ -1,15 +1,15 @@
 import { CATEGORY_LABELS, PRICE_CATEGORY_LABELS } from '../types'
-import type { CompetitorProduct, Product } from '../types'
+import type { Product } from '../types'
 import { stockLabel } from '../lib/matching'
 import { ProductImage } from './ProductImage'
 
 interface Props {
-  competitor?: CompetitorProduct
-  own: Product
-  ownAlternatives: Product[]
+  reference?: Product
+  offer: Product
+  alternatives: Product[]
   qty: number
   onQtyChange: (qty: number) => void
-  onOwnChange: (ownId: string) => void
+  onOfferChange: (id: string) => void
   onRemove: () => void
 }
 
@@ -19,16 +19,16 @@ const stockToneClass: Record<'ok' | 'low' | 'out', string> = {
   out: 'text-red-700 bg-red-50',
 }
 
-export function ComparisonCard({ competitor, own, ownAlternatives, qty, onQtyChange, onOwnChange, onRemove }: Props) {
-  const stock = stockLabel(own.stock)
-  const specKeys = Array.from(new Set([...(competitor ? Object.keys(competitor.specs) : []), ...Object.keys(own.specs)]))
-  const priceDiff = competitor ? own.priceUSD - competitor.priceUSD : undefined
+export function ComparisonCard({ reference, offer, alternatives, qty, onQtyChange, onOfferChange, onRemove }: Props) {
+  const stock = stockLabel(offer.stock)
+  const specKeys = Array.from(new Set([...(reference ? Object.keys(reference.specs) : []), ...Object.keys(offer.specs)]))
+  const priceDiff = reference ? offer.priceUSD - reference.priceUSD : undefined
 
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-4 print:break-inside-avoid">
       <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
         <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
-          {CATEGORY_LABELS[own.category]}
+          {CATEGORY_LABELS[offer.category]}
         </span>
         <button onClick={onRemove} className="no-print text-sm text-red-600 hover:underline">
           Убрать из КП
@@ -36,33 +36,33 @@ export function ComparisonCard({ competitor, own, ownAlternatives, qty, onQtyCha
       </div>
 
       <div className="mb-3 flex flex-wrap items-center gap-4">
-        {competitor && (
+        {reference && (
           <>
             <div className="flex items-center gap-2">
-              <ProductImage imageUrl={competitor.imageUrl} brand={competitor.brand} category={competitor.category} />
+              <ProductImage imageUrl={reference.imageUrl} brand={reference.brand} category={reference.category} />
               <div className="text-sm">
-                <div className="text-xs text-slate-400">Из списка клиента</div>
+                <div className="text-xs text-slate-400">Ориентир</div>
                 <div className="font-medium text-slate-700">
-                  {competitor.brand} {competitor.model}
+                  {reference.brand} {reference.model}
                 </div>
-                <div className="text-slate-400">${competitor.priceUSD}</div>
+                <div className="text-slate-400">${reference.priceUSD}</div>
               </div>
             </div>
             <span className="text-xl text-slate-300">→</span>
           </>
         )}
-        <ProductImage imageUrl={own.imageUrl} brand={own.brand} category={own.category} />
+        <ProductImage imageUrl={offer.imageUrl} brand={offer.brand} category={offer.category} />
       </div>
 
       <div className="mb-3 flex flex-wrap items-center gap-3">
         <div className="no-print flex-1 min-w-[220px]">
-          <label className="block text-xs font-medium text-slate-500">Наш вариант</label>
+          <label className="block text-xs font-medium text-slate-500">Наше предложение</label>
           <select
             className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
-            value={own.id}
-            onChange={(e) => onOwnChange(e.target.value)}
+            value={offer.id}
+            onChange={(e) => onOfferChange(e.target.value)}
           >
-            {ownAlternatives.map((alt) => (
+            {alternatives.map((alt) => (
               <option key={alt.id} value={alt.id}>
                 {alt.brand} {alt.model} — ${alt.priceUSD}
               </option>
@@ -70,7 +70,7 @@ export function ComparisonCard({ competitor, own, ownAlternatives, qty, onQtyCha
           </select>
         </div>
         <div className="hidden print:block font-semibold text-slate-900">
-          Наш вариант: {own.brand} {own.model}
+          Предложение: {offer.brand} {offer.model}
         </div>
         <div>
           <label className="block text-xs font-medium text-slate-500">Кол-во</label>
@@ -84,9 +84,9 @@ export function ComparisonCard({ competitor, own, ownAlternatives, qty, onQtyCha
           <span className="hidden print:inline">{qty} шт.</span>
         </div>
         <div className="ml-auto text-right">
-          <div className="text-lg font-semibold text-slate-900">${(own.priceUSD * qty).toLocaleString()}</div>
+          <div className="text-lg font-semibold text-slate-900">${(offer.priceUSD * qty).toLocaleString()}</div>
           <div className="text-xs text-slate-400">
-            ${own.priceUSD} × {qty} · {PRICE_CATEGORY_LABELS[own.priceCategory]}
+            ${offer.priceUSD} × {qty} · {PRICE_CATEGORY_LABELS[offer.priceCategory]}
           </div>
         </div>
       </div>
@@ -111,39 +111,39 @@ export function ComparisonCard({ competitor, own, ownAlternatives, qty, onQtyCha
           <thead>
             <tr className="text-left text-xs text-slate-400">
               <th className="w-1/3 py-1 font-normal">Характеристика</th>
-              {competitor && <th className="w-1/3 py-1 font-normal">{competitor.brand}</th>}
-              <th className="w-1/3 py-1 font-normal">{own.brand}</th>
+              {reference && <th className="w-1/3 py-1 font-normal">{reference.brand}</th>}
+              <th className="w-1/3 py-1 font-normal">{offer.brand}</th>
             </tr>
           </thead>
           <tbody>
             {specKeys.map((key) => (
               <tr key={key} className="border-t border-slate-100">
                 <td className="py-1 pr-2 text-slate-500">{key}</td>
-                {competitor && <td className="py-1 pr-2 text-slate-700">{competitor.specs[key] ?? '—'}</td>}
-                <td className="py-1 text-slate-900">{own.specs[key] ?? '—'}</td>
+                {reference && <td className="py-1 pr-2 text-slate-700">{reference.specs[key] ?? '—'}</td>}
+                <td className="py-1 text-slate-900">{offer.specs[key] ?? '—'}</td>
               </tr>
             ))}
           </tbody>
         </table>
       )}
 
-      {(own.pros.length > 0 || own.cons.length > 0) && (
+      {(offer.pros.length > 0 || offer.cons.length > 0) && (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {own.pros.length > 0 && (
+          {offer.pros.length > 0 && (
             <div>
-              <div className="mb-1 text-xs font-medium text-emerald-700">Плюсы нашего варианта</div>
+              <div className="mb-1 text-xs font-medium text-emerald-700">Плюсы</div>
               <ul className="space-y-0.5 text-sm text-slate-700">
-                {own.pros.map((pro, i) => (
+                {offer.pros.map((pro, i) => (
                   <li key={i}>+ {pro}</li>
                 ))}
               </ul>
             </div>
           )}
-          {own.cons.length > 0 && (
+          {offer.cons.length > 0 && (
             <div>
               <div className="mb-1 text-xs font-medium text-amber-700">Минусы</div>
               <ul className="space-y-0.5 text-sm text-slate-700">
-                {own.cons.map((con, i) => (
+                {offer.cons.map((con, i) => (
                   <li key={i}>− {con}</li>
                 ))}
               </ul>
@@ -151,9 +151,7 @@ export function ComparisonCard({ competitor, own, ownAlternatives, qty, onQtyCha
           )}
         </div>
       )}
-      {competitor?.notes && (
-        <div className="mt-2 rounded bg-blue-50 px-2 py-1 text-xs text-blue-800">{competitor.notes}</div>
-      )}
+      {reference?.notes && <div className="mt-2 rounded bg-blue-50 px-2 py-1 text-xs text-blue-800">{reference.notes}</div>}
     </div>
   )
 }

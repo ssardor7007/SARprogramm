@@ -23,22 +23,22 @@ export const PRICE_CATEGORY_LABELS: Record<PriceCategory, string> = {
   premium: 'Премиум',
 }
 
-export const OWN_BRANDS = ['TP-Link', 'Vitek', 'Hikvision'] as const
-export type OwnBrand = (typeof OWN_BRANDS)[number]
-
-export const COMPETITOR_BRANDS = [
-  'Ruijie',
+/** Единый список брендов на площадке — сетевое направление и видеонаблюдение. */
+export const BRANDS = [
+  'TP-Link',
+  'Wi-Tek',
+  'Hikvision',
+  'Dahua',
   'Tenda',
   'Ubiquiti (UniFi)',
   'MikroTik',
-  'Dahua',
-  'Другое',
+  'Ruijie',
 ] as const
-export type CompetitorBrand = (typeof COMPETITOR_BRANDS)[number]
+export type Brand = (typeof BRANDS)[number]
 
-export interface BaseProduct {
+export interface Product {
   id: string
-  brand: string
+  brand: Brand
   series?: string
   category: Category
   model: string
@@ -49,24 +49,16 @@ export interface BaseProduct {
   notes?: string
   /** необязательное фото товара; без него показывается фирменная иконка категории */
   imageUrl?: string
-}
-
-export interface Product extends BaseProduct {
-  brand: OwnBrand
   stock: number
   pros: string[]
   cons: string[]
-}
-
-export interface CompetitorProduct extends BaseProduct {
-  brand: CompetitorBrand
-  /** id товара из своего каталога, вручную подобранный как лучший аналог */
-  recommendedOwnId?: string
+  /** id другого товара в каталоге, вручную подобранный как лучшая альтернатива */
+  alternativeId?: string
 }
 
 export interface QuoteLine {
   id: string
-  competitorProductId?: string
-  ownProductId: string
+  referenceProductId?: string
+  productId: string
   qty: number
 }

@@ -1,35 +1,35 @@
-import type { CompetitorProduct, Product } from '../types'
+import type { Product } from '../types'
 
 /**
- * Подбор лучшего аналога из своего каталога для товара конкурента.
- * 1) если у товара конкурента указан recommendedOwnId — берём его;
- * 2) иначе ищем среди своих товаров той же категории ближайший по цене
- *    и категории цены (грубая эвристика, чтобы список никогда не был пустым).
+ * Подбор лучшей альтернативы товару в едином каталоге.
+ * 1) если у товара указан alternativeId — берём его;
+ * 2) иначе ищем среди товаров той же категории (другого бренда) ближайший
+ *    по цене и ценовой категории, эвристика на случай, когда пара не задана вручную.
  */
-export function findBestMatch(
-  competitor: CompetitorProduct,
-  ownCatalog: Product[],
-): Product | undefined {
-  if (competitor.recommendedOwnId) {
-    const exact = ownCatalog.find((p) => p.id === competitor.recommendedOwnId)
+export function findBestMatch(reference: Product, catalog: Product[]): Product | undefined {
+  if (reference.alternativeId) {
+    const exact = catalog.find((p) => p.id === reference.alternativeId)
     if (exact) return exact
   }
 
-  const sameCategory = ownCatalog.filter((p) => p.category === competitor.category)
+  const sameCategory = catalog.filter((p) => p.category === reference.category && p.id !== reference.id)
   if (sameCategory.length === 0) return undefined
 
-  const samePriceTier = sameCategory.filter((p) => p.priceCategory === competitor.priceCategory)
-  const pool = samePriceTier.length > 0 ? samePriceTier : sameCategory
+  const otherBrand = sameCategory.filter((p) => p.brand !== reference.brand)
+  const pool = otherBrand.length > 0 ? otherBrand : sameCategory
 
-  return pool.reduce((closest, candidate) => {
-    const closestDiff = Math.abs(closest.priceUSD - competitor.priceUSD)
-    const candidateDiff = Math.abs(candidate.priceUSD - competitor.priceUSD)
+  const samePriceTier = pool.filter((p) => p.priceCategory === reference.priceCategory)
+  const finalPool = samePriceTier.length > 0 ? samePriceTier : pool
+
+  return finalPool.reduce((closest, candidate) => {
+    const closestDiff = Math.abs(closest.priceUSD - reference.priceUSD)
+    const candidateDiff = Math.abs(candidate.priceUSD - reference.priceUSD)
     return candidateDiff < closestDiff ? candidate : closest
   })
 }
 
-export function alternativesInCategory(category: Product['category'], ownCatalog: Product[]) {
-  return ownCatalog.filter((p) => p.category === category)
+export function alternativesInCategory(category: Product['category'], catalog: Product[]) {
+  return catalog.filter((p) => p.category === category)
 }
 
 export function stockLabel(stock: number): { text: string; tone: 'ok' | 'low' | 'out' } {

@@ -1,15 +1,14 @@
 import { useMemo, useState } from 'react'
-import type { CompetitorProduct, Product, QuoteLine } from '../types'
+import type { Product, QuoteLine } from '../types'
 import { alternativesInCategory, findBestMatch } from '../lib/matching'
 import { genId } from '../lib/storage'
 import { ComparisonCard } from './ComparisonCard'
 
 interface Props {
-  competitorCatalog: CompetitorProduct[]
-  ownCatalog: Product[]
+  catalog: Product[]
 }
 
-export function CompareView({ competitorCatalog, ownCatalog }: Props) {
+export function CompareView({ catalog }: Props) {
   const [lines, setLines] = useState<QuoteLine[]>([])
   const [search, setSearch] = useState('')
   const [clientName, setClientName] = useState('')
@@ -17,23 +16,21 @@ export function CompareView({ competitorCatalog, ownCatalog }: Props) {
   const searchResults = useMemo(() => {
     if (!search.trim()) return []
     const q = search.trim().toLowerCase()
-    return competitorCatalog
-      .filter((p) => `${p.brand} ${p.model}`.toLowerCase().includes(q))
-      .slice(0, 8)
-  }, [search, competitorCatalog])
+    return catalog.filter((p) => `${p.brand} ${p.model}`.toLowerCase().includes(q)).slice(0, 8)
+  }, [search, catalog])
 
-  function addCompetitorItem(cp: CompetitorProduct) {
-    const match = findBestMatch(cp, ownCatalog)
+  function addReferenceItem(reference: Product) {
+    const match = findBestMatch(reference, catalog)
     if (!match) {
-      alert('В своём каталоге нет товаров в этой категории — сначала добавьте аналог в «Мой каталог».')
+      alert('В каталоге нет других товаров в этой категории — сначала добавьте их в «Каталог».')
       return
     }
-    setLines((prev) => [...prev, { id: genId('line'), competitorProductId: cp.id, ownProductId: match.id, qty: 1 }])
+    setLines((prev) => [...prev, { id: genId('line'), referenceProductId: reference.id, productId: match.id, qty: 1 }])
     setSearch('')
   }
 
-  function addOwnItemDirectly(product: Product) {
-    setLines((prev) => [...prev, { id: genId('line'), ownProductId: product.id, qty: 1 }])
+  function addItemDirectly(product: Product) {
+    setLines((prev) => [...prev, { id: genId('line'), productId: product.id, qty: 1 }])
   }
 
   function updateLine(id: string, patch: Partial<QuoteLine>) {
@@ -45,14 +42,14 @@ export function CompareView({ competitorCatalog, ownCatalog }: Props) {
   }
 
   const total = lines.reduce((sum, l) => {
-    const own = ownCatalog.find((p) => p.id === l.ownProductId)
-    return sum + (own ? own.priceUSD * l.qty : 0)
+    const p = catalog.find((p) => p.id === l.productId)
+    return sum + (p ? p.priceUSD * l.qty : 0)
   }, 0)
 
-  const competitorTotal = lines.reduce((sum, l) => {
-    if (!l.competitorProductId) return sum
-    const cp = competitorCatalog.find((p) => p.id === l.competitorProductId)
-    return sum + (cp ? cp.priceUSD * l.qty : 0)
+  const referenceTotal = lines.reduce((sum, l) => {
+    if (!l.referenceProductId) return sum
+    const ref = catalog.find((p) => p.id === l.referenceProductId)
+    return sum + (ref ? ref.priceUSD * l.qty : 0)
   }, 0)
 
   return (
@@ -61,7 +58,7 @@ export function CompareView({ competitorCatalog, ownCatalog }: Props) {
         <div>
           <h1 className="text-xl font-semibold text-slate-900">Сравнение и коммерческое предложение</h1>
           <p className="text-sm text-slate-500">
-            Внесите список оборудования, который принёс клиент — система подберёт аналоги из вашего каталога.
+            Внесите список оборудования, который принёс клиент — система подберёт лучший вариант из каталога.
           </p>
         </div>
         {lines.length > 0 && (
@@ -84,24 +81,24 @@ export function CompareView({ competitorCatalog, ownCatalog }: Props) {
             onChange={(e) => setClientName(e.target.value)}
           />
         </div>
-        <label className="block text-sm font-medium text-slate-700">Найти товар конкурента из списка клиента</label>
+        <label className="block text-sm font-medium text-slate-700">Найти товар из списка клиента</label>
         <input
           className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
-          placeholder="Например: RG-EG105G или Ubiquiti U6-LR"
+          placeholder="Например: RG-EG105G, Ubiquiti U6-LR или TL-SG3428MP"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
         {searchResults.length > 0 && (
           <div className="mt-2 divide-y divide-slate-100 rounded border border-slate-200">
-            {searchResults.map((cp) => (
+            {searchResults.map((p) => (
               <button
-                key={cp.id}
-                onClick={() => addCompetitorItem(cp)}
+                key={p.id}
+                onClick={() => addReferenceItem(p)}
                 className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-slate-50"
               >
                 <span>
-                  <span className="font-medium">{cp.brand} {cp.model}</span>{' '}
-                  <span className="text-slate-400">${cp.priceUSD}</span>
+                  <span className="font-medium">{p.brand} {p.model}</span>{' '}
+                  <span className="text-slate-400">${p.priceUSD}</span>
                 </span>
                 <span className="text-blue-600">+ добавить</span>
               </button>
@@ -110,19 +107,19 @@ export function CompareView({ competitorCatalog, ownCatalog }: Props) {
         )}
         {search.trim() && searchResults.length === 0 && (
           <p className="mt-2 text-sm text-slate-400">
-            Не найдено в каталоге конкурентов. Добавьте его во вкладке «Конкуренты», либо выберите свой товар напрямую ниже.
+            Не найдено в каталоге. Добавьте его во вкладке «Каталог», либо выберите товар напрямую ниже.
           </p>
         )}
 
         <details className="mt-3">
           <summary className="cursor-pointer text-sm font-medium text-blue-600">
-            + добавить свой товар в КП напрямую (без сравнения)
+            + добавить товар в КП напрямую (без сравнения)
           </summary>
           <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {ownCatalog.map((p) => (
+            {catalog.map((p) => (
               <button
                 key={p.id}
-                onClick={() => addOwnItemDirectly(p)}
+                onClick={() => addItemDirectly(p)}
                 className="rounded border border-slate-200 px-2 py-1.5 text-left text-xs hover:bg-slate-50"
               >
                 {p.brand} {p.model}
@@ -133,7 +130,7 @@ export function CompareView({ competitorCatalog, ownCatalog }: Props) {
       </div>
 
       {lines.length === 0 ? (
-        <p className="text-sm text-slate-400 no-print">Список пуст. Найдите товар конкурента выше, чтобы начать.</p>
+        <p className="text-sm text-slate-400 no-print">Список пуст. Найдите товар клиента выше, чтобы начать.</p>
       ) : (
         <div>
           <div className="hidden print:block mb-4">
@@ -144,21 +141,21 @@ export function CompareView({ competitorCatalog, ownCatalog }: Props) {
 
           <div className="space-y-3">
             {lines.map((line) => {
-              const own = ownCatalog.find((p) => p.id === line.ownProductId)
-              if (!own) return null
-              const competitor = line.competitorProductId
-                ? competitorCatalog.find((p) => p.id === line.competitorProductId)
+              const offer = catalog.find((p) => p.id === line.productId)
+              if (!offer) return null
+              const reference = line.referenceProductId
+                ? catalog.find((p) => p.id === line.referenceProductId)
                 : undefined
-              const alternatives = alternativesInCategory(own.category, ownCatalog)
+              const alternatives = alternativesInCategory(offer.category, catalog)
               return (
                 <ComparisonCard
                   key={line.id}
-                  competitor={competitor}
-                  own={own}
-                  ownAlternatives={alternatives}
+                  reference={reference}
+                  offer={offer}
+                  alternatives={alternatives}
                   qty={line.qty}
                   onQtyChange={(qty) => updateLine(line.id, { qty })}
-                  onOwnChange={(ownId) => updateLine(line.id, { ownProductId: ownId })}
+                  onOfferChange={(id) => updateLine(line.id, { productId: id })}
                   onRemove={() => removeLine(line.id)}
                 />
               )
@@ -168,17 +165,17 @@ export function CompareView({ competitorCatalog, ownCatalog }: Props) {
           <div className="mt-6 rounded-lg border border-slate-200 bg-white p-4">
             <div className="flex items-center justify-between text-sm text-slate-500">
               <span>Позиций: {lines.length}</span>
-              {competitorTotal > 0 && <span>Сумма по списку клиента (ориентировочно): ${competitorTotal.toLocaleString()}</span>}
+              {referenceTotal > 0 && <span>Сумма по списку клиента (ориентировочно): ${referenceTotal.toLocaleString()}</span>}
             </div>
             <div className="mt-1 flex items-center justify-between">
               <span className="text-lg font-semibold text-slate-900">Итого наше предложение</span>
               <span className="text-2xl font-bold text-slate-900">${total.toLocaleString()}</span>
             </div>
-            {competitorTotal > 0 && (
-              <div className={`mt-1 text-sm font-medium ${total <= competitorTotal ? 'text-emerald-700' : 'text-amber-700'}`}>
-                {total <= competitorTotal
-                  ? `Выгода клиента: $${(competitorTotal - total).toLocaleString()}`
-                  : `Дороже списка клиента на $${(total - competitorTotal).toLocaleString()} — используйте плюсы товаров выше, чтобы обосновать разницу`}
+            {referenceTotal > 0 && (
+              <div className={`mt-1 text-sm font-medium ${total <= referenceTotal ? 'text-emerald-700' : 'text-amber-700'}`}>
+                {total <= referenceTotal
+                  ? `Выгода клиента: $${(referenceTotal - total).toLocaleString()}`
+                  : `Дороже списка клиента на $${(total - referenceTotal).toLocaleString()} — используйте плюсы товаров выше, чтобы обосновать разницу`}
               </div>
             )}
           </div>

@@ -13,7 +13,7 @@ export interface DesignerInput {
   outdoorCoverage: boolean
   cameraTier: CameraTier
   cameraCount: number
-  cameraBrand: 'Vitek' | 'Hikvision'
+  cameraBrand: 'Hikvision' | 'Dahua'
 }
 
 export interface DesignerLine {
@@ -40,15 +40,15 @@ const AREA_PER_AP: Record<WallMaterial, number> = {
 const DEVICE_CAPACITY_PER_AP = 25
 const POE_PORT_HEADROOM = 1.15
 
-function findOwn(ownCatalog: Product[], id: string, category: Product['category'], tier: 'budget' | 'mid' | 'premium') {
-  const byId = ownCatalog.find((p) => p.id === id)
+function findProduct(catalog: Product[], id: string, category: Product['category'], tier: 'budget' | 'mid' | 'premium') {
+  const byId = catalog.find((p) => p.id === id)
   if (byId) return byId
-  const sameCategory = ownCatalog.filter((p) => p.category === category)
+  const sameCategory = catalog.filter((p) => p.category === category)
   const sameTier = sameCategory.find((p) => p.priceCategory === tier)
   return sameTier ?? sameCategory[0]
 }
 
-export function designNetwork(input: DesignerInput, ownCatalog: Product[]): DesignerResult {
+export function designNetwork(input: DesignerInput, catalog: Product[]): DesignerResult {
   const warnings: string[] = []
   const areaPerAP = AREA_PER_AP[input.wallMaterial]
   const areaPerFloor = input.totalAreaM2 / Math.max(1, input.floors)
@@ -67,8 +67,8 @@ export function designNetwork(input: DesignerInput, ownCatalog: Product[]): Desi
   let apTier: 'budget' | 'mid' | 'premium' = 'budget'
   if (devicesPerAP > 25 || areaPerAP >= 150) apTier = 'premium'
   else if (devicesPerAP > 12 || input.wallMaterial !== 'open') apTier = 'mid'
-  const apIdByTier = { budget: 'own-eap225', mid: 'own-eap620hd', premium: 'own-eap670' } as const
-  const apProduct = findOwn(ownCatalog, apIdByTier[apTier], 'ap', apTier)
+  const apIdByTier = { budget: 'tpl-eap225', mid: 'tpl-eap620hd', premium: 'tpl-eap670' } as const
+  const apProduct = findProduct(catalog, apIdByTier[apTier], 'ap', apTier)
 
   const lines: DesignerLine[] = []
 
@@ -80,11 +80,11 @@ export function designNetwork(input: DesignerInput, ownCatalog: Product[]): Desi
       reason: `${input.floors} эт. × ~${apsPerFloor} AP/этаж по покрытию (${areaPerAP} м²/точка для стен «${wallMaterialLabel(input.wallMaterial)}»), с учётом ${input.concurrentDevices} одновременных клиентов`,
     })
   } else {
-    warnings.push('В каталоге нет подходящей точки доступа — добавьте товары категории «Точка доступа» в «Мой каталог».')
+    warnings.push('В каталоге нет подходящей точки доступа — добавьте товары категории «Точка доступа» в «Каталог».')
   }
 
   if (outdoorAPs > 0) {
-    const outdoorProduct = findOwn(ownCatalog, 'own-eap225-outdoor', 'ap', 'mid')
+    const outdoorProduct = findProduct(catalog, 'tpl-eap225-outdoor', 'ap', 'mid')
     if (outdoorProduct) {
       lines.push({
         role: 'Точки доступа для улицы/двора',
@@ -101,11 +101,11 @@ export function designNetwork(input: DesignerInput, ownCatalog: Product[]): Desi
 
   if (poePortsNeeded > 0) {
     if (poePortsNeeded <= 8) {
-      const sw = findOwn(ownCatalog, 'own-sg2210p', 'switch', 'budget')
+      const sw = findProduct(catalog, 'tpl-sg2210p', 'switch', 'budget')
       if (sw) lines.push({ role: 'PoE-коммутатор', product: sw, qty: 1, reason: `Нужно ~${poePortsNeeded} PoE-портов с запасом` })
     } else {
       const swCount = Math.ceil(poePortsNeeded / 24)
-      const sw = findOwn(ownCatalog, 'own-sg3428mp', 'switch', 'mid')
+      const sw = findProduct(catalog, 'tpl-sg3428mp', 'switch', 'mid')
       if (sw) {
         lines.push({
           role: 'PoE-коммутатор',
@@ -119,15 +119,15 @@ export function designNetwork(input: DesignerInput, ownCatalog: Product[]): Desi
 
   // Роутер/шлюз по количеству пользователей
   let routerTier: 'budget' | 'mid' | 'premium' = 'budget'
-  let routerId = 'own-er605'
+  let routerId = 'tpl-er605'
   if (input.concurrentDevices > 150) {
     routerTier = 'premium'
-    routerId = 'own-er8411'
+    routerId = 'tpl-er8411'
   } else if (input.concurrentDevices > 50) {
     routerTier = 'mid'
-    routerId = 'own-er7206'
+    routerId = 'tpl-er7206'
   }
-  const router = findOwn(ownCatalog, routerId, 'router', routerTier)
+  const router = findProduct(catalog, routerId, 'router', routerTier)
   if (router) {
     lines.push({
       role: 'Роутер / шлюз',
@@ -139,7 +139,7 @@ export function designNetwork(input: DesignerInput, ownCatalog: Product[]): Desi
 
   // Контроллер Omada — для централизованной настройки и автоматического роуминга между AP
   if (apCount + outdoorAPs > 1) {
-    const controller = findOwn(ownCatalog, 'own-oc200', 'other', 'budget')
+    const controller = findProduct(catalog, 'tpl-oc200', 'other', 'budget')
     if (controller) {
       lines.push({
         role: 'Контроллер сети (аналог Omada Designer)',
@@ -158,15 +158,15 @@ export function designNetwork(input: DesignerInput, ownCatalog: Product[]): Desi
       premium: 'premium',
     }
     const priceTier = cameraTierMap[input.cameraTier]
-    const cameraPool = ownCatalog.filter((p) => p.category === 'camera' && p.brand === input.cameraBrand)
+    const cameraPool = catalog.filter((p) => p.category === 'camera' && p.brand === input.cameraBrand)
     const camera = cameraPool.find((p) => p.priceCategory === priceTier) ?? cameraPool[0]
     if (camera) {
       lines.push({ role: 'IP-камеры', product: camera, qty: cameraCount, reason: `Выбрано по бренду ${input.cameraBrand} и уровню «${cameraTierLabel(input.cameraTier)}»` })
     } else {
-      warnings.push(`В каталоге нет камер бренда ${input.cameraBrand} — добавьте их в «Мой каталог».`)
+      warnings.push(`В каталоге нет камер бренда ${input.cameraBrand} — добавьте их в «Каталог».`)
     }
 
-    const nvrPool = ownCatalog.filter((p) => p.category === 'nvr' && p.brand === input.cameraBrand)
+    const nvrPool = catalog.filter((p) => p.category === 'nvr' && p.brand === input.cameraBrand)
     const nvr = nvrPool.find((p) => {
       const channelsStr = p.specs['Каналы'] ?? ''
       const channels = parseInt(channelsStr, 10)

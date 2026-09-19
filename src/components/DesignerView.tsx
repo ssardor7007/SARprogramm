@@ -12,7 +12,7 @@ import {
 import { SHOW_VIDEO_SURVEILLANCE } from '../lib/features'
 
 interface Props {
-  ownCatalog: Product[]
+  catalog: Product[]
 }
 
 const BUILDING_TYPE_LABELS: Record<BuildingType, string> = {
@@ -26,7 +26,7 @@ const BUILDING_TYPE_LABELS: Record<BuildingType, string> = {
 const WALL_OPTIONS: WallMaterial[] = ['open', 'drywall', 'brick', 'concrete']
 const CAMERA_TIERS: CameraTier[] = ['none', 'budget', 'standard', 'premium']
 
-export function DesignerView({ ownCatalog }: Props) {
+export function DesignerView({ catalog }: Props) {
   const [input, setInput] = useState<DesignerInput>({
     buildingType: 'office',
     totalAreaM2: 500,
@@ -39,7 +39,7 @@ export function DesignerView({ ownCatalog }: Props) {
     cameraBrand: 'Hikvision',
   })
 
-  const result = designNetwork(input, ownCatalog)
+  const result = designNetwork(input, catalog)
 
   function set<K extends keyof DesignerInput>(key: K, value: DesignerInput[K]) {
     setInput((prev) => ({ ...prev, [key]: value }))
@@ -51,8 +51,8 @@ export function DesignerView({ ownCatalog }: Props) {
         <h1 className="text-xl font-semibold text-slate-900">Подбор оборудования по объекту</h1>
         <p className="text-sm text-slate-500">
           Упрощённый аналог TP-Link Omada Designer: введите параметры здания — получите ориентировочный набор
-          точек доступа, коммутаторов и роутера. Это оценка «на глаз», не замена радиообследования для сложных
-          объектов.
+          точек доступа, коммутаторов, роутера и камер. Это оценка «на глаз», не замена радиообследования для
+          сложных объектов.
         </p>
       </div>
 
@@ -171,10 +171,10 @@ export function DesignerView({ ownCatalog }: Props) {
                     <select
                       className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
                       value={input.cameraBrand}
-                      onChange={(e) => set('cameraBrand', e.target.value as 'Vitek' | 'Hikvision')}
+                      onChange={(e) => set('cameraBrand', e.target.value as 'Hikvision' | 'Dahua')}
                     >
-                      <option value="Vitek">Vitek</option>
                       <option value="Hikvision">Hikvision</option>
+                      <option value="Dahua">Dahua</option>
                     </select>
                   </div>
                 </div>

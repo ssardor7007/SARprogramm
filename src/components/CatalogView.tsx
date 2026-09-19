@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
-import { CATEGORY_LABELS, PRICE_CATEGORY_LABELS } from '../types'
+import { CATEGORY_LABELS } from '../types'
 import type { Category, Product } from '../types'
-import { visibleCategories, visibleOwnBrands } from '../lib/features'
+import { visibleBrands, visibleCategories } from '../lib/features'
 import { stockLabel } from '../lib/matching'
-import { OwnProductForm } from './OwnProductForm'
+import { ProductForm } from './ProductForm'
 import { ProductImage } from './ProductImage'
 
 interface Props {
@@ -19,13 +19,13 @@ const stockToneClass: Record<'ok' | 'low' | 'out', string> = {
   out: 'text-red-700 bg-red-50',
 }
 
-export function OwnCatalogView({ items, onSave, onRemove, onReset }: Props) {
+export function CatalogView({ items, onSave, onRemove, onReset }: Props) {
   const [brandFilter, setBrandFilter] = useState<string>('all')
   const [categoryFilter, setCategoryFilter] = useState<string>('all')
   const [editing, setEditing] = useState<Product | undefined>()
   const [showForm, setShowForm] = useState(false)
 
-  const brands = useMemo(() => Array.from(new Set(items.map((p) => p.brand))), [items])
+  const brands = useMemo(() => visibleBrands().filter((b) => items.some((p) => p.brand === b)), [items])
 
   const filtered = items.filter(
     (p) => (brandFilter === 'all' || p.brand === brandFilter) && (categoryFilter === 'all' || p.category === categoryFilter),
@@ -35,10 +35,8 @@ export function OwnCatalogView({ items, onSave, onRemove, onReset }: Props) {
     <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">Мой каталог</h1>
-          <p className="text-sm text-slate-500">
-            {visibleOwnBrands().join(', ')} — то, что вы продаёте и держите на складе.
-          </p>
+          <h1 className="text-xl font-semibold text-slate-900">Каталог</h1>
+          <p className="text-sm text-slate-500">Все бренды площадки в одном месте — сеть и видеонаблюдение.</p>
         </div>
         <div className="flex gap-2">
           <button
@@ -116,10 +114,7 @@ export function OwnCatalogView({ items, onSave, onRemove, onReset }: Props) {
                     </div>
                   </td>
                   <td className="px-3 py-2 text-slate-600">{CATEGORY_LABELS[p.category as Category]}</td>
-                  <td className="px-3 py-2 text-slate-600">
-                    ${p.priceUSD}
-                    <div className="text-xs text-slate-400">{PRICE_CATEGORY_LABELS[p.priceCategory]}</div>
-                  </td>
+                  <td className="px-3 py-2 text-slate-600">${p.priceUSD}</td>
                   <td className="px-3 py-2">
                     <span className={`rounded px-2 py-0.5 text-xs font-medium ${stockToneClass[stock.tone]}`}>
                       {stock.text}
@@ -159,7 +154,7 @@ export function OwnCatalogView({ items, onSave, onRemove, onReset }: Props) {
       </div>
 
       {showForm && (
-        <OwnProductForm initial={editing} onSave={onSave} onClose={() => setShowForm(false)} />
+        <ProductForm initial={editing} catalog={items} onSave={onSave} onClose={() => setShowForm(false)} />
       )}
     </div>
   )
