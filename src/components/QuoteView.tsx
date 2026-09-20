@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { Product, QuoteLine } from '../types'
+import { COMPANY_ADDRESS, COMPANY_NAME, COMPANY_TAGLINE, WHATSAPP_DISPLAY, whatsappLink } from '../lib/contacts'
 import { alternativesInCategory, findBestMatch } from '../lib/matching'
 import { genId } from '../lib/storage'
 import { ComparisonCard } from './ComparisonCard'
@@ -8,10 +9,20 @@ interface Props {
   catalog: Product[]
 }
 
+function formatQuoteNumber(date: Date) {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  const suffix = Math.random().toString(36).slice(2, 6).toUpperCase()
+  return `КП-${y}${m}${d}-${suffix}`
+}
+
 export function QuoteView({ catalog }: Props) {
   const [lines, setLines] = useState<QuoteLine[]>([])
   const [search, setSearch] = useState('')
   const [clientName, setClientName] = useState('')
+  const [quoteDate] = useState(() => new Date())
+  const [quoteNumber] = useState(() => formatQuoteNumber(quoteDate))
 
   const searchResults = useMemo(() => {
     if (!search.trim()) return []
@@ -52,6 +63,20 @@ export function QuoteView({ catalog }: Props) {
     return sum + (ref ? ref.priceUSD * l.qty : 0)
   }, 0)
 
+  function buildWhatsappMessage() {
+    const parts = [`Коммерческое предложение ${quoteNumber} от ${COMPANY_NAME}`]
+    if (clientName) parts.push(`Клиент: ${clientName}`)
+    parts.push('')
+    for (const line of lines) {
+      const offer = catalog.find((p) => p.id === line.productId)
+      if (!offer) continue
+      parts.push(`• ${offer.brand} ${offer.model} × ${line.qty} — $${(offer.priceUSD * line.qty).toLocaleString()}`)
+    }
+    parts.push('')
+    parts.push(`Итого: $${total.toLocaleString()}`)
+    return parts.join('\n')
+  }
+
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3 no-print">
@@ -63,12 +88,22 @@ export function QuoteView({ catalog }: Props) {
           </p>
         </div>
         {lines.length > 0 && (
-          <button
-            onClick={() => window.print()}
-            className="rounded bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700"
-          >
-            Печать / сохранить как PDF
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <a
+              href={whatsappLink(buildWhatsappMessage())}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded border border-emerald-600 px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-50"
+            >
+              Отправить в WhatsApp
+            </a>
+            <button
+              onClick={() => window.print()}
+              className="rounded bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700"
+            >
+              Печать / сохранить как PDF
+            </button>
+          </div>
         )}
       </div>
 
@@ -132,10 +167,27 @@ export function QuoteView({ catalog }: Props) {
         <p className="text-sm text-slate-400 no-print">Список пуст. Впишите модель товара клиента выше, чтобы начать.</p>
       ) : (
         <div>
-          <div className="hidden print:block mb-4">
-            <h1 className="text-xl font-semibold">Коммерческое предложение</h1>
-            {clientName && <p className="text-slate-600">{clientName}</p>}
-            <p className="text-sm text-slate-400">{new Date().toLocaleDateString('ru-RU')}</p>
+          <div className="hidden print:block mb-6 border-b-2 border-slate-900 pb-4">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div
+                  className="flex h-11 w-11 items-center justify-center rounded-xl text-base font-extrabold text-white"
+                  style={{ backgroundColor: '#2f5fe0' }}
+                >
+                  S
+                </div>
+                <div>
+                  <p className="text-lg font-extrabold text-slate-900">{COMPANY_NAME}</p>
+                  <p className="text-xs text-slate-500">{COMPANY_TAGLINE}</p>
+                </div>
+              </div>
+              <div className="text-right text-sm text-slate-500">
+                <p className="font-medium text-slate-900">{quoteNumber}</p>
+                <p>{quoteDate.toLocaleDateString('ru-RU')}</p>
+              </div>
+            </div>
+            <h1 className="mt-4 text-xl font-semibold text-slate-900">Коммерческое предложение</h1>
+            {clientName && <p className="text-slate-600">Клиент / объект: {clientName}</p>}
           </div>
 
           <div className="space-y-3">
@@ -177,6 +229,11 @@ export function QuoteView({ catalog }: Props) {
                   : `Дороже списка клиента на $${(total - referenceTotal).toLocaleString()} — используйте плюсы товаров выше, чтобы обосновать разницу`}
               </div>
             )}
+          </div>
+
+          <div className="hidden print:flex mt-8 items-center justify-between border-t border-slate-200 pt-3 text-xs text-slate-500">
+            <span>{COMPANY_NAME} · {COMPANY_ADDRESS}</span>
+            <span>WhatsApp: {WHATSAPP_DISPLAY}</span>
           </div>
         </div>
       )}

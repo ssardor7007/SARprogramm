@@ -44,15 +44,6 @@
   --danger: #ef6b73;
 }
 
-@media print {
-  .no-print {
-    display: none !important;
-  }
-  body {
-    background: white;
-  }
-}
-
 body {
   background-color: var(--bg);
   color: var(--text);
@@ -85,4 +76,24 @@ select option {
 .font-display {
   font-family: 'Manrope', system-ui, sans-serif;
   letter-spacing: -0.01em;
+}
+
+/* Идёт последним в файле, чтобы `body { background: white }` перебивал
+ * общее правило `body { background-color: var(--bg) }` выше при равной
+ * специфичности — иначе порядковый выигрывает более поздний, а не более
+ * точный по медиа-условию. */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: white;
+  }
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  @page {
+    margin: 14mm 12mm;
+  }
 }
