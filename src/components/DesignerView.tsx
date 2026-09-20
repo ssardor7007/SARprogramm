@@ -105,8 +105,14 @@ export function DesignerView({ catalog, onSentToRack, onSentToPlan }: Props) {
     onSentToRack?.()
   }
 
-  function sendToBuildingPlan() {
-    sendDesignToBuildingPlan(input.buildingType, input.wallMaterial, input.floors)
+  function sendToBuildingPlan(tierResult: TierResult) {
+    const byRole = (role: string) => tierResult.lines.find((l) => l.role === role)?.product?.id
+    sendDesignToBuildingPlan(input.buildingType, input.wallMaterial, input.floors, {
+      apProductId: byRole('Точки доступа Wi-Fi'),
+      switchProductId: byRole('PoE-коммутатор'),
+      routerProductId: byRole('Роутер / шлюз'),
+      controllerProductId: byRole('Контроллер сети (Omada)'),
+    })
     onSentToPlan?.()
   }
 
@@ -526,7 +532,7 @@ export function DesignerView({ catalog, onSentToRack, onSentToPlan }: Props) {
                           Добавить в «Дизайнер стойки» →
                         </button>
                         <button
-                          onClick={sendToBuildingPlan}
+                          onClick={() => sendToBuildingPlan(t)}
                           className="no-print rounded border border-slate-300 px-2 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
                         >
                           Показать на плане здания →

@@ -12,8 +12,14 @@ export function sendDesignToBuildingPlan(
   buildingType: BuildingType,
   wallMaterial: WallMaterial,
   floors: { lengthM: number; widthM: number; ceilingHeightM: number; rooms: number }[],
+  preferred?: {
+    apProductId?: string
+    switchProductId?: string
+    routerProductId?: string
+    controllerProductId?: string
+  },
 ) {
-  const plan = generateFloorPlanFromDesigner(buildingType, wallMaterial, floors)
+  const plan = generateFloorPlanFromDesigner(buildingType, wallMaterial, floors, preferred)
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(plan))
   } catch {

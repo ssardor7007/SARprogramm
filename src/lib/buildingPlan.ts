@@ -43,6 +43,16 @@ export interface BuildingPlan {
   floors: Floor[]
   /** Этаж, где стоит сервер/основная стойка — остальные подключаются магистральным кабелем */
   serverFloorId: string
+  /**
+   * Конкретное оборудование, уже подобранное в «Подборе по объекту» для одного из
+   * сегментов (бюджет/оптимум/премиум) — если задано, planBuilding ставит именно
+   * эти модели на всё здание вместо своего подбора по рангу стен, так что бренд
+   * на плане совпадает с тем, что выбрали в карточке сегмента.
+   */
+  preferredApProductId?: string
+  preferredSwitchProductId?: string
+  preferredRouterProductId?: string
+  preferredControllerProductId?: string
 }
 
 export interface APPlacement {
@@ -212,12 +222,13 @@ export function newPlacedAP(pos: Point): PlacedAP {
   return { id: genId('ap'), pos }
 }
 
-function pickSwitch(catalog: Product[], portsNeeded: number): { product?: Product; qty: number } {
+function pickSwitch(catalog: Product[], portsNeeded: number, preferred?: Product): { product?: Product; qty: number } {
   if (portsNeeded <= 0) return { product: undefined, qty: 0 }
+  const qty = portsNeeded <= 8 ? 1 : Math.ceil(portsNeeded / 24)
+  if (preferred) return { product: preferred, qty }
   if (portsNeeded <= 8) {
     return { product: findProduct(catalog, 'tpl-sg2210p', 'switch', 'budget'), qty: 1 }
   }
-  const qty = Math.ceil(portsNeeded / 24)
   return { product: findProduct(catalog, 'tpl-sg3428mp', 'switch', 'mid'), qty }
 }
 
@@ -225,6 +236,13 @@ export function planBuilding(plan: BuildingPlan, catalog: Product[]): BuildingPl
   const warnings: string[] = []
   const serverFloorIndex = Math.max(0, plan.floors.findIndex((f) => f.id === plan.serverFloorId))
   const serverFloor = plan.floors[serverFloorIndex] ?? plan.floors[0]
+
+  const preferredAp = plan.preferredApProductId ? catalog.find((p) => p.id === plan.preferredApProductId) : undefined
+  const preferredSwitch = plan.preferredSwitchProductId ? catalog.find((p) => p.id === plan.preferredSwitchProductId) : undefined
+  const preferredRouter = plan.preferredRouterProductId ? catalog.find((p) => p.id === plan.preferredRouterProductId) : undefined
+  const preferredController = plan.preferredControllerProductId
+    ? catalog.find((p) => p.id === plan.preferredControllerProductId)
+    : undefined
 
   const perFloor: FloorResult[] = plan.floors.map((floor, floorIndex) => {
     const worstRank = floor.rooms.reduce((rank, room) => Math.max(rank, MATERIAL_RANK[room.wallMaterial]), 0)
@@ -238,13 +256,13 @@ export function planBuilding(plan: BuildingPlan, catalog: Product[]): BuildingPl
     }))
 
     const apTier = TIER_BY_RANK[worstRank]
-    const apProduct = aps.length > 0 ? findProduct(catalog, AP_ID_BY_TIER[apTier], 'ap', apTier) : undefined
+    const apProduct = aps.length === 0 ? undefined : (preferredAp ?? findProduct(catalog, AP_ID_BY_TIER[apTier], 'ap', apTier))
     if (aps.length > 0 && !apProduct) {
       warnings.push(`Этаж «${floor.name}»: в каталоге нет подходящей точки доступа.`)
     }
 
     const portsNeeded = Math.ceil(aps.length * 1.15)
-    const { product: switchProduct, qty: switchQty } = pickSwitch(catalog, portsNeeded)
+    const { product: switchProduct, qty: switchQty } = pickSwitch(catalog, portsNeeded, preferredSwitch)
     if (portsNeeded > 0 && !switchProduct) {
       warnings.push(`Этаж «${floor.name}»: в каталоге нет подходящего PoE-коммутатора.`)
     }
@@ -278,12 +296,19 @@ export function planBuilding(plan: BuildingPlan, catalog: Product[]): BuildingPl
     routerTier = 'mid'
     routerId = 'tpl-er7206'
   }
-  const routerProduct = totalAPCount > 0 ? findProduct(catalog, routerId, 'router', routerTier) : undefined
+  const routerProduct = totalAPCount === 0 ? undefined : (preferredRouter ?? findProduct(catalog, routerId, 'router', routerTier))
   if (totalAPCount > 0 && !routerProduct) {
     warnings.push('В каталоге нет подходящего роутера/шлюза.')
   }
 
-  const controllerProduct = totalAPCount > 1 ? findProduct(catalog, 'tpl-oc200', 'other', 'budget') : undefined
+  // Оверрайд из Дизайнера сам решает, нужен ли контроллер (он приходит только для
+  // экосистем с Omada) — в этом режиме не подсовываем свой TP-Link-контроллер,
+  // если Дизайнер для этого сегмента его не выбирал.
+  const isOverridden = Boolean(preferredAp || preferredSwitch || preferredRouter)
+  const controllerProduct =
+    totalAPCount > 1
+      ? (preferredController ?? (isOverridden ? undefined : findProduct(catalog, 'tpl-oc200', 'other', 'budget')))
+      : undefined
 
   const equipmentUSD =
     perFloor.reduce((sum, f) => sum + (f.apProduct ? f.apProduct.priceUSD * f.aps.length : 0) + (f.switchProduct ? f.switchProduct.priceUSD * f.switchQty : 0), 0) +
@@ -397,6 +422,12 @@ export function generateFloorPlanFromDesigner(
   buildingType: BuildingType,
   wallMaterial: WallMaterial,
   floors: { lengthM: number; widthM: number; ceilingHeightM: number; rooms: number }[],
+  preferred?: {
+    apProductId?: string
+    switchProductId?: string
+    routerProductId?: string
+    controllerProductId?: string
+  },
 ): BuildingPlan {
   const isHotelLike = buildingType === 'hotel' || buildingType === 'apartment'
   const resultFloors: Floor[] = floors.map((f, i) => {
@@ -446,5 +477,12 @@ export function generateFloorPlanFromDesigner(
     return { id: floorId, name: `Этаж ${i + 1}`, heightM: f.ceilingHeightM, rooms, aps: autoPlaceAPs(rooms), switchPoint }
   })
 
-  return { floors: resultFloors, serverFloorId: resultFloors[0].id }
+  return {
+    floors: resultFloors,
+    serverFloorId: resultFloors[0].id,
+    preferredApProductId: preferred?.apProductId,
+    preferredSwitchProductId: preferred?.switchProductId,
+    preferredRouterProductId: preferred?.routerProductId,
+    preferredControllerProductId: preferred?.controllerProductId,
+  }
 }
