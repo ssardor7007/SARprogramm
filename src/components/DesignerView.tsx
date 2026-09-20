@@ -520,13 +520,15 @@ export function DesignerView({ catalog, onSentToRack, onSentToPlan }: Props) {
                                 size="sm"
                               />
                             )}
-                            <div className="min-w-0">
-                              <div
-                                className="truncate font-medium text-slate-900"
-                                title={line.product ? `${line.product.brand} ${line.product.model}` : line.role}
-                              >
-                                {line.product ? `${line.product.brand} ${line.product.model}` : line.role}
-                                {line.qty > 1 ? ` × ${line.qty}` : ''}
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-baseline gap-1">
+                                <span
+                                  className="truncate font-medium text-slate-900"
+                                  title={line.product ? `${line.product.brand} ${line.product.model}` : line.role}
+                                >
+                                  {line.product ? `${line.product.brand} ${line.product.model}` : line.role}
+                                </span>
+                                {line.qty > 1 && <span className="shrink-0 font-medium text-slate-900">× {line.qty}</span>}
                               </div>
                               <div className="text-xs text-slate-400">{line.role}</div>
                             </div>
