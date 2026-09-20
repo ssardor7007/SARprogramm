@@ -7,7 +7,7 @@ interface Props {
   imageUrl?: string
   brand: string
   category: Category
-  size?: 'xs' | 'sm' | 'md' | 'lg'
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'fill'
 }
 
 /** Относительные пути (из public/) резолвятся с учётом base пути сборки — GitHub Pages/поддомен. */
@@ -22,6 +22,28 @@ export function ProductImage({ imageUrl, brand, category, size = 'md' }: Props) 
   const color = brandColor(brand)
   const dim = size === 'xs' ? 'h-5 w-5' : size === 'sm' ? 'h-10 w-10' : size === 'lg' ? 'h-24 w-24' : 'h-16 w-16'
   const iconDim = size === 'xs' ? 'h-3 w-3' : size === 'sm' ? 'h-5 w-5' : size === 'lg' ? 'h-10 w-10' : 'h-8 w-8'
+
+  // 'fill' — заполняет собой родителя (у которого должен быть position: relative), а не занимает
+  // фиксированный квадрат: нужно для фотографии оборудования во весь юнит стойки.
+  if (size === 'fill') {
+    if (imageUrl && !failed) {
+      return (
+        <img
+          src={resolveSrc(imageUrl)}
+          alt={brand}
+          onError={() => setFailed(true)}
+          className="absolute inset-0 h-full w-full object-contain p-1"
+        />
+      )
+    }
+    return (
+      <div className="absolute inset-0 flex items-center justify-center" style={{ color }}>
+        <div className="h-1/2 w-1/2">
+          <CategoryIcon category={category} />
+        </div>
+      </div>
+    )
+  }
 
   if (imageUrl && !failed) {
     return (
