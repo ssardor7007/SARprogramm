@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { CATEGORY_LABELS } from '../types'
 import type { Category, Product } from '../types'
 import type { RackLine } from '../lib/rackCart'
+import { isRackMountable } from '../lib/rackMount'
 import { genId, usePersistedState } from '../lib/storage'
 import { ProductImage } from './ProductImage'
 import { RackElevation } from './RackElevation'
@@ -12,13 +13,6 @@ interface Props {
 
 const RACK_HEIGHTS = [12, 24, 42] as const
 const CATEGORY_ORDER: Category[] = ['router', 'switch', 'ap', 'camera', 'nvr', 'other']
-
-/** Точки доступа и камеры монтируются на стене/потолке объекта и подключаются к порту свича —
- * физически в серверный шкаф не устанавливаются и не занимают юниты. */
-const WALL_MOUNTED_CATEGORIES = new Set<Category>(['ap', 'camera'])
-function isRackMountable(category: Category) {
-  return !WALL_MOUNTED_CATEGORIES.has(category)
-}
 
 /** Интерактивная рабочая область серверного шкафа — поиск/добавление оборудования, сам шкаф и то, что
  * подключено к нему, но стоит на объекте. Встраивается в «План здания», как физическая часть проекта. */
@@ -78,17 +72,17 @@ export function RackWorkspace({ catalog }: Props) {
     })
   }
 
-  function categoryOf(line: RackLine): Category | undefined {
-    return catalog.find((c) => c.id === line.productId)?.category
+  function productOf(line: RackLine): Product | undefined {
+    return catalog.find((c) => c.id === line.productId)
   }
 
   const rackLines = lines.filter((l) => {
-    const cat = categoryOf(l)
-    return cat !== undefined && isRackMountable(cat)
+    const p = productOf(l)
+    return p !== undefined && isRackMountable(p)
   })
   const wallLines = lines.filter((l) => {
-    const cat = categoryOf(l)
-    return cat !== undefined && !isRackMountable(cat)
+    const p = productOf(l)
+    return p !== undefined && !isRackMountable(p)
   })
 
   const usedU = rackLines.reduce((sum, l) => sum + l.qty * l.unitsPerItem, 0)
@@ -317,8 +311,9 @@ export function RackWorkspace({ catalog }: Props) {
           <div className="shrink-0 border-b border-slate-100 p-3">
             <h2 className="text-sm font-semibold text-slate-700">Устанавливается на объекте — не в шкафу</h2>
             <p className="mt-1 text-xs text-slate-400">
-              Точки доступа и камеры монтируются на стене/потолке и подключаются кабелем к порту коммутатора — в
-              юниты шкафа не входят, но учтены в общей смете ниже.
+              Точки доступа, камеры и настольные модели без крепления в стойку (по характеристикам товара) — стоят
+              на объекте и подключаются кабелем к порту коммутатора. В юниты шкафа не входят, но учтены в общей
+              смете ниже.
             </p>
           </div>
           <div className="flex-1 overflow-y-auto p-3 print:overflow-visible">
@@ -389,7 +384,7 @@ export function RackWorkspace({ catalog }: Props) {
         </div>
         {wallLines.length > 0 && (
           <div className="flex items-center justify-between text-xs text-slate-400">
-            <span>из них вне шкафа (AP/камеры)</span>
+            <span>из них вне шкафа (без крепления в стойку)</span>
             <span>{wallLines.reduce((sum, l) => sum + l.qty, 0)}</span>
           </div>
         )}

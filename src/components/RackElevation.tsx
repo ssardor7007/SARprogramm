@@ -1,15 +1,10 @@
 import { brandColor } from '../lib/brandTheme'
 import type { RackLine } from '../lib/rackCart'
-import type { Category, Product } from '../types'
+import { isRackMountable } from '../lib/rackMount'
+import type { Product } from '../types'
 import { ProductImage } from './ProductImage'
 
 const UNIT_PX = 28
-
-/** Точки доступа и камеры монтируются на стене/потолке объекта, а не в шкаф — не занимают юниты. */
-const WALL_MOUNTED_CATEGORIES = new Set<Category>(['ap', 'camera'])
-function isRackMountable(category: Category) {
-  return !WALL_MOUNTED_CATEGORIES.has(category)
-}
 
 interface Props {
   catalog: Product[]
@@ -21,7 +16,7 @@ interface Props {
 export function RackElevation({ catalog, lines, rackHeight }: Props) {
   const rackLines = lines.filter((l) => {
     const p = catalog.find((c) => c.id === l.productId)
-    return p !== undefined && isRackMountable(p.category)
+    return p !== undefined && isRackMountable(p)
   })
   const usedU = rackLines.reduce((sum, l) => sum + l.qty * l.unitsPerItem, 0)
   const overCapacity = usedU > rackHeight
