@@ -35,7 +35,7 @@ export interface FloorSpec {
   lengthM: number
   widthM: number
   ceilingHeightM: number
-  /** Для гостиниц/апартаментов: номеров на этом этаже — уточняет расчёт точек доступа по коридору */
+  /** Комнат/кабинетов на этом этаже (0, если не делить) — чем мельче нарезан этаж, тем больше точек доступа нужно даже при той же площади. */
   rooms: number
 }
 
@@ -91,7 +91,7 @@ export const AREA_PER_AP: Record<WallMaterial, number> = {
 /** Уличная точка доступа без внутренних стен на пути сигнала уверенно держит заметно большую площадь, чем в помещении. */
 const OUTDOOR_AREA_PER_AP = 300
 
-/** Номеров гостиницы, которые уверенно накрывает одна точка доступа в коридоре — зависит от толщины стен между номерами */
+/** Небольших комнат, которые уверенно накрывает одна точка доступа из коридора/соседней комнаты — зависит от толщины стен между ними */
 const ROOMS_PER_AP: Record<WallMaterial, number> = {
   open: 8,
   drywall: 6,
@@ -281,16 +281,16 @@ function designTier(input: DesignerInput, catalog: Product[], tier: Tier): TierR
   const concurrentDevices = input.workstations + input.mobileDevices
   const baseAreaPerAP = AREA_PER_AP[input.wallMaterial]
 
-  const isHotelLike = input.buildingType === 'hotel' || input.buildingType === 'apartment'
-
   // Считаем точки доступа отдельно на каждый этаж по его собственным промерам
   // (длина × ширина, высота потолка, число комнат) — у этажей разного размера
-  // разная потребность, не берём среднюю площадь по зданию.
+  // разная потребность, не берём среднюю площадь по зданию. Число комнат учитываем
+  // для любого типа объекта: чем мельче нарезан этаж, тем больше внутренних стен
+  // на пути сигнала, даже если общая площадь та же.
   const floorPlan = input.floors.map((f, i) => {
     const areaM2 = floorAreaM2(f)
     const areaPerAP = baseAreaPerAP * ceilingHeightFactor(f.ceilingHeightM)
     const apsByArea = Math.max(1, Math.ceil(areaM2 / areaPerAP))
-    const apsByRooms = isHotelLike && f.rooms > 0 ? Math.ceil(f.rooms / ROOMS_PER_AP[input.wallMaterial]) : 0
+    const apsByRooms = f.rooms > 0 ? Math.ceil(f.rooms / ROOMS_PER_AP[input.wallMaterial]) : 0
     const aps = Math.max(apsByArea, apsByRooms)
     return { floorNo: i + 1, areaM2, rooms: f.rooms, aps, byRoomsWins: apsByRooms > apsByArea }
   })
@@ -315,10 +315,10 @@ function designTier(input: DesignerInput, catalog: Product[], tier: Tier): TierR
   if (apProduct) {
     brands.add(apProduct.brand)
     const perFloorText = floorPlan
-      .map((f) => `эт.${f.floorNo}: ${f.areaM2.toFixed(0)} м²${f.byRoomsWins ? `, ${f.rooms} номеров` : ''} → ${f.aps} AP`)
+      .map((f) => `эт.${f.floorNo}: ${f.areaM2.toFixed(0)} м²${f.byRoomsWins ? `, ${f.rooms} комнат` : ''} → ${f.aps} AP`)
       .join(', ')
     const coverageReason = floorPlan.some((f) => f.byRoomsWins)
-      ? `по площади/номерам и высоте потолков каждого этажа (~${ROOMS_PER_AP[input.wallMaterial]} номеров на точку для гостиничных этажей)`
+      ? `по площади/числу комнат и высоте потолков каждого этажа (~${ROOMS_PER_AP[input.wallMaterial]} комнат на точку)`
       : `по площади и высоте потолков каждого этажа`
     lines.push({
       role: 'Точки доступа Wi-Fi',

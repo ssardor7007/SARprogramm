@@ -43,8 +43,8 @@ export function DesignerView({ catalog, onSentToRack, onSentToPlan }: Props) {
   const [input, setInput] = useState<DesignerInput>({
     buildingType: 'office',
     floors: [
-      { lengthM: 20, widthM: 12.5, ceilingHeightM: 3, rooms: 20 },
-      { lengthM: 20, widthM: 12.5, ceilingHeightM: 3, rooms: 20 },
+      { lengthM: 20, widthM: 12.5, ceilingHeightM: 3, rooms: 0 },
+      { lengthM: 20, widthM: 12.5, ceilingHeightM: 3, rooms: 0 },
     ],
     wallMaterial: 'drywall',
     workstations: 15,
@@ -141,9 +141,8 @@ export function DesignerView({ catalog, onSentToRack, onSentToPlan }: Props) {
           <div>
             <label className="block text-sm font-medium text-slate-700">Этажи и промеры каждого</label>
             <p className="mt-0.5 text-xs text-slate-400">
-              Вводите реальные промеры помещения — длину, ширину, высоту потолка{isHotelLike ? ' и число номеров' : ''} —
-              на каждый этаж отдельно. Точки доступа считаются по каждому этажу самостоятельно, а не по средней
-              площади здания.
+              Вводите реальные промеры помещения — длину, ширину, высоту потолка и число комнат — на каждый этаж
+              отдельно. Точки доступа считаются по каждому этажу самостоятельно, а не по средней площади здания.
             </p>
             <div className="mt-2 space-y-2">
               {input.floors.map((f, i) => (
@@ -191,18 +190,16 @@ export function DesignerView({ catalog, onSentToRack, onSentToPlan }: Props) {
                         onChange={(e) => setFloorField(i, 'ceilingHeightM', Math.max(0, Number(e.target.value)))}
                       />
                     </div>
-                    {isHotelLike && (
-                      <div>
-                        <label className="block text-xs text-slate-500">Номеров / квартир</label>
-                        <input
-                          type="number"
-                          min={0}
-                          className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
-                          value={f.rooms}
-                          onChange={(e) => setFloorField(i, 'rooms', Math.max(0, Number(e.target.value)))}
-                        />
-                      </div>
-                    )}
+                    <div>
+                      <label className="block text-xs text-slate-500">{isHotelLike ? 'Номеров / квартир' : 'Комнат'}</label>
+                      <input
+                        type="number"
+                        min={0}
+                        className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                        value={f.rooms}
+                        onChange={(e) => setFloorField(i, 'rooms', Math.max(0, Number(e.target.value)))}
+                      />
+                    </div>
                   </div>
                   <p className="mt-1.5 text-xs text-slate-400">Площадь: {floorAreaM2(f).toFixed(0)} м²</p>
                 </div>
@@ -218,12 +215,11 @@ export function DesignerView({ catalog, onSentToRack, onSentToPlan }: Props) {
             <p className="mt-2 text-xs text-slate-400">
               Итого: {totalAreaM2.toLocaleString()} м² на {input.floors.length} эт.
             </p>
-            {isHotelLike && (
-              <p className="mt-1 text-xs text-slate-400">
-                У гостиниц много маленьких номеров с несущими стенами между ними — точек доступа обычно нужно
-                больше, чем по одной лишь площади этажа. Берём более осторожную из двух оценок на каждом этаже.
-              </p>
-            )}
+            <p className="mt-1 text-xs text-slate-400">
+              Если этаж разбит на много небольших комнат с несущими стенами между ними — точек доступа обычно
+              нужно больше, чем по одной лишь площади этажа. Берём более осторожную из двух оценок на каждом
+              этаже (0 комнат — считаем только по площади).
+            </p>
           </div>
 
           <div>
@@ -448,7 +444,10 @@ export function DesignerView({ catalog, onSentToRack, onSentToPlan }: Props) {
 
           <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">
             {BUILDING_TYPE_LABELS[input.buildingType]}, {totalAreaM2.toLocaleString()} м² на всё здание, {input.floors.length} эт.
-            {isHotelLike && ` (${input.floors.reduce((sum, f) => sum + f.rooms, 0)} номеров всего)`}
+            {(() => {
+              const totalRooms = input.floors.reduce((sum, f) => sum + f.rooms, 0)
+              return totalRooms > 0 ? ` (${totalRooms} ${isHotelLike ? 'номеров' : 'комнат'} всего)` : ''
+            })()}
             {' '}— {resultsByBrand[0].result.concurrentDevices} одновременных клиентов ({input.workstations} рабочих мест +{' '}
             {input.mobileDevices} мобильных устройств).{' '}
             {resultsByBrand.length > 1
