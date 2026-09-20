@@ -20,6 +20,7 @@ import {
 import { sendDesignToBuildingPlan } from '../lib/buildingPlanBridge'
 import { SHOW_VIDEO_SURVEILLANCE } from '../lib/features'
 import { addProductsToRack } from '../lib/rackCart'
+import { ProductImage } from './ProductImage'
 
 interface Props {
   catalog: Product[]
@@ -506,12 +507,29 @@ export function DesignerView({ catalog, onSentToRack, onSentToPlan }: Props) {
 
                       <ul className="mb-3 flex-1 space-y-2 text-sm">
                         {t.lines.map((line, i) => (
-                          <li key={i} className="border-t border-slate-100 pt-2 first:border-0 first:pt-0" title={line.reason}>
-                            <div className="font-medium text-slate-900">
-                              {line.product ? `${line.product.brand} ${line.product.model}` : line.role}
-                              {line.qty > 1 ? ` × ${line.qty}` : ''}
+                          <li
+                            key={i}
+                            className="flex items-center gap-2 border-t border-slate-100 pt-2 first:border-0 first:pt-0"
+                            title={line.reason}
+                          >
+                            {line.product && (
+                              <ProductImage
+                                imageUrl={line.product.imageUrl}
+                                brand={line.product.brand}
+                                category={line.product.category}
+                                size="sm"
+                              />
+                            )}
+                            <div className="min-w-0">
+                              <div
+                                className="truncate font-medium text-slate-900"
+                                title={line.product ? `${line.product.brand} ${line.product.model}` : line.role}
+                              >
+                                {line.product ? `${line.product.brand} ${line.product.model}` : line.role}
+                                {line.qty > 1 ? ` × ${line.qty}` : ''}
+                              </div>
+                              <div className="text-xs text-slate-400">{line.role}</div>
                             </div>
-                            <div className="text-xs text-slate-400">{line.role}</div>
                           </li>
                         ))}
                       </ul>
