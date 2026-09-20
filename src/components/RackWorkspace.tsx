@@ -22,6 +22,7 @@ export function RackWorkspace({ catalog }: Props) {
   const [search, setSearch] = useState('')
   const [brandFilter, setBrandFilter] = useState('all')
   const [dragIndex, setDragIndex] = useState<number | null>(null)
+  const [editingLineId, setEditingLineId] = useState<string | null>(null)
 
   const brands = useMemo(() => Array.from(new Set(catalog.map((p) => p.brand))).sort(), [catalog])
 
@@ -107,6 +108,9 @@ export function RackWorkspace({ catalog }: Props) {
 
   const groupedRackLines = useMemo(() => groupByCategory(rackLines), [rackLines, catalog])
   const groupedWallLines = useMemo(() => groupByCategory(wallLines), [wallLines, catalog])
+
+  const editingLine = editingLineId ? (lines.find((l) => l.id === editingLineId) ?? null) : null
+  const editingProduct = editingLine ? productOf(editingLine) : undefined
 
   return (
     <div>
@@ -284,7 +288,13 @@ export function RackWorkspace({ catalog }: Props) {
           </div>
 
           <div className="flex-1 overflow-y-auto p-3 print:overflow-visible">
-            <RackElevation catalog={catalog} lines={lines} rackHeight={rackHeight} />
+            <RackElevation
+              catalog={catalog}
+              lines={lines}
+              rackHeight={rackHeight}
+              onEditLine={(line) => setEditingLineId(line.id)}
+              onRemoveLine={(id) => removeLine(id)}
+            />
           </div>
 
           <div className="no-print flex shrink-0 items-center justify-between border-t border-slate-100 px-3 py-2">
@@ -393,6 +403,88 @@ export function RackWorkspace({ catalog }: Props) {
           <span className="text-xl font-bold text-slate-900">${totalPrice.toLocaleString()}</span>
         </div>
       </div>
+
+      {editingLine && editingProduct && (
+        <div
+          className="no-print fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setEditingLineId(null)}
+        >
+          <div className="w-full max-w-sm rounded-xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-base font-semibold text-slate-900">Редактировать устройство</h3>
+              <button onClick={() => setEditingLineId(null)} className="text-slate-400 hover:text-slate-600">
+                ✕
+              </button>
+            </div>
+
+            <div className="mb-4 flex justify-center rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <ProductImage imageUrl={editingProduct.imageUrl} brand={editingProduct.brand} category={editingProduct.category} size="lg" />
+            </div>
+
+            <div className="mb-3">
+              <div className="text-xs text-slate-500">Модель</div>
+              <div className="text-sm font-medium text-slate-900">
+                {editingProduct.brand} {editingProduct.model}
+              </div>
+            </div>
+
+            <div className="mb-3 flex items-center justify-between">
+              <span className="text-sm text-slate-600">Количество</span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => removeOne(editingProduct.id)}
+                  className="h-7 w-7 rounded border border-slate-300 text-sm hover:bg-slate-50"
+                >
+                  −
+                </button>
+                <span className="w-6 text-center text-sm font-medium text-slate-900">{editingLine.qty}</span>
+                <button onClick={() => addOne(editingProduct)} className="h-7 w-7 rounded border border-slate-300 text-sm hover:bg-slate-50">
+                  +
+                </button>
+              </div>
+            </div>
+
+            {isRackMountable(editingProduct) && (
+              <div className="mb-4 flex items-center justify-between">
+                <span className="text-sm text-slate-600">Высота одного экземпляра, U</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setUnitsPerItem(editingLine.id, editingLine.unitsPerItem - 1)}
+                    className="h-7 w-7 rounded border border-slate-300 text-sm hover:bg-slate-50"
+                  >
+                    −
+                  </button>
+                  <span className="w-6 text-center text-sm font-medium text-slate-900">{editingLine.unitsPerItem}</span>
+                  <button
+                    onClick={() => setUnitsPerItem(editingLine.id, editingLine.unitsPerItem + 1)}
+                    className="h-7 w-7 rounded border border-slate-300 text-sm hover:bg-slate-50"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  removeLine(editingLine.id)
+                  setEditingLineId(null)
+                }}
+                className="flex-1 rounded border border-red-200 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
+              >
+                Убрать
+              </button>
+              <button
+                onClick={() => setEditingLineId(null)}
+                className="flex-1 rounded bg-slate-900 py-2 text-sm font-medium text-white hover:bg-slate-700"
+              >
+                Готово
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

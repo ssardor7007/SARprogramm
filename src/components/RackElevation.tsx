@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react'
+import { useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react'
 import { brandColor } from '../lib/brandTheme'
 import type { RackLine } from '../lib/rackCart'
 import { isRackMountable } from '../lib/rackMount'
@@ -18,10 +18,16 @@ interface Props {
   catalog: Product[]
   lines: RackLine[]
   rackHeight: number
+  /** Пункт «Изменить» в меню юнита — открывает карточку редактирования у вызывающего компонента. */
+  onEditLine?: (line: RackLine) => void
+  /** Пункт «Убрать» в меню юнита. */
+  onRemoveLine?: (lineId: string) => void
 }
 
 /** Визуальный серверный шкаф (elevation view), встроенный в «Дизайнер серверного шкафа» на «Плане здания». */
-export function RackElevation({ catalog, lines, rackHeight }: Props) {
+export function RackElevation({ catalog, lines, rackHeight, onEditLine, onRemoveLine }: Props) {
+  const [menuFor, setMenuFor] = useState<{ line: RackLine; x: number; y: number } | null>(null)
+
   const rackLines = lines.filter((l) => {
     const p = catalog.find((c) => c.id === l.productId)
     return p !== undefined && isRackMountable(p)
@@ -29,6 +35,12 @@ export function RackElevation({ catalog, lines, rackHeight }: Props) {
   const usedU = rackLines.reduce((sum, l) => sum + l.qty * l.unitsPerItem, 0)
   const overCapacity = usedU > rackHeight
   const freeU = Math.max(0, rackHeight - usedU)
+
+  function openMenu(e: ReactMouseEvent<HTMLButtonElement>, line: RackLine) {
+    e.stopPropagation()
+    const rect = e.currentTarget.getBoundingClientRect()
+    setMenuFor((prev) => (prev?.line.id === line.id ? null : { line, x: rect.right, y: rect.bottom + 4 }))
+  }
 
   return (
     <div>
@@ -69,9 +81,20 @@ export function RackElevation({ catalog, lines, rackHeight }: Props) {
                     {heightU}U
                   </span>
 
-                  <div className="absolute inset-x-0 bottom-0 truncate bg-black/70 px-1.5 py-0.5 text-[10px] font-medium leading-tight text-white">
-                    {p.brand} {p.model}
-                    {line.qty > 1 ? ` × ${line.qty}` : ''}
+                  <div className="absolute inset-x-0 bottom-0 flex items-center gap-1 bg-black/70 py-0.5 pl-1.5 pr-0.5">
+                    <span className="min-w-0 flex-1 truncate text-[10px] font-medium leading-tight text-white">
+                      {p.brand} {p.model}
+                      {line.qty > 1 ? ` × ${line.qty}` : ''}
+                    </span>
+                    {(onEditLine || onRemoveLine) && (
+                      <button
+                        onClick={(e) => openMenu(e, line)}
+                        className="no-print shrink-0 rounded px-1.5 text-xs leading-none text-white/70 hover:bg-white/20 hover:text-white"
+                        title="Действия с устройством"
+                      >
+                        ⋮
+                      </button>
+                    )}
                   </div>
                 </div>
               )
@@ -98,6 +121,35 @@ export function RackElevation({ catalog, lines, rackHeight }: Props) {
         <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
           Превышена высота шкафа: {usedU}U из {rackHeight}U. Уберите позицию или выберите шкаф выше.
         </div>
+      )}
+
+      {menuFor && (
+        <>
+          <div className="no-print fixed inset-0 z-40" onClick={() => setMenuFor(null)} />
+          <div
+            className="no-print fixed z-50 w-36 -translate-x-full overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg"
+            style={{ left: menuFor.x, top: menuFor.y }}
+          >
+            <button
+              onClick={() => {
+                onEditLine?.(menuFor.line)
+                setMenuFor(null)
+              }}
+              className="block w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+            >
+              Изменить
+            </button>
+            <button
+              onClick={() => {
+                onRemoveLine?.(menuFor.line.id)
+                setMenuFor(null)
+              }}
+              className="block w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+            >
+              Убрать
+            </button>
+          </div>
+        </>
       )}
     </div>
   )
