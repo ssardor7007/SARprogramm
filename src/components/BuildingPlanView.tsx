@@ -16,7 +16,9 @@ import {
   type Room,
 } from '../lib/buildingPlan'
 import { BUILDING_TYPE_LABELS, wallMaterialLabel, type BuildingType, type WallMaterial } from '../lib/designer'
+import type { RackLine } from '../lib/rackCart'
 import { genId, usePersistedState } from '../lib/storage'
+import { RackElevation } from './RackElevation'
 
 interface Props {
   catalog: Product[]
@@ -83,6 +85,8 @@ type DragState =
 
 export function BuildingPlanView({ catalog }: Props) {
   const [plan, setPlan] = usePersistedState<BuildingPlan>('building-plan', defaultPlan())
+  const [rackLines] = usePersistedState<RackLine[]>('rack-lines', [])
+  const [rackHeight] = usePersistedState<number>('rack-height', 42)
   const [activeFloorId, setActiveFloorId] = useState(plan.floors[0]?.id)
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null)
   const [drawRect, setDrawRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
@@ -579,6 +583,23 @@ export function BuildingPlanView({ catalog }: Props) {
                 🖧
               </div>
             </div>
+          </div>
+
+          <div className="mt-4">
+            {isServerFloor ? (
+              <>
+                <h2 className="mb-1 text-sm font-semibold text-slate-700">Серверная стойка ({rackHeight}U)</h2>
+                <p className="mb-3 text-xs text-slate-400">
+                  Оборудование из вкладки «Стойка» — роутер, коммутаторы и прочее, что монтируется в шкаф на этом,
+                  серверном этаже.
+                </p>
+                <RackElevation catalog={catalog} lines={rackLines} rackHeight={rackHeight} />
+              </>
+            ) : (
+              <p className="text-xs text-slate-400">
+                🖧 Серверная стойка находится на этаже «{plan.floors.find((f) => f.id === plan.serverFloorId)?.name}».
+              </p>
+            )}
           </div>
         </div>
 
