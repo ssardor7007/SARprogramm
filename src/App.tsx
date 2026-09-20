@@ -3,6 +3,7 @@ import { BuildingPlanView } from './components/BuildingPlanView'
 import { CatalogView } from './components/CatalogView'
 import { DesignerView } from './components/DesignerView'
 import { CatalogIcon, DesignerIcon, PlanIcon, QuoteIcon, ToolsIcon } from './components/NavIcons'
+import { ProjectSwitcher } from './components/ProjectSwitcher'
 import { QuoteView } from './components/QuoteView'
 import { CATALOG_VERSION, PRODUCTS } from './data/products'
 import { brandColor } from './lib/brandTheme'
@@ -91,21 +92,24 @@ function App() {
               })}
             </nav>
 
-            <button
-              onClick={() => setSection(section === 'client' ? 'pro' : 'client')}
-              className="flex shrink-0 items-center gap-1.5 rounded-full border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--text-muted)] hover:bg-black/5"
-            >
-              {section === 'client' ? (
-                <>
-                  <span className="h-3.5 w-3.5">
-                    <ToolsIcon />
-                  </span>
-                  Инструменты для монтажников
-                </>
-              ) : (
-                '← В каталог'
-              )}
-            </button>
+            <div className="flex shrink-0 items-center gap-2">
+              {section === 'pro' && <ProjectSwitcher />}
+              <button
+                onClick={() => setSection(section === 'client' ? 'pro' : 'client')}
+                className="flex shrink-0 items-center gap-1.5 rounded-full border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--text-muted)] hover:bg-black/5"
+              >
+                {section === 'client' ? (
+                  <>
+                    <span className="h-3.5 w-3.5">
+                      <ToolsIcon />
+                    </span>
+                    Инструменты для монтажников
+                  </>
+                ) : (
+                  '← В каталог'
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </header>

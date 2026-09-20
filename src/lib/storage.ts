@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 
 const PREFIX = 'sar-net-compare:'
 
-function load<T>(key: string, fallback: T): T {
+export function load<T>(key: string, fallback: T): T {
   try {
     const raw = localStorage.getItem(PREFIX + key)
     if (!raw) return fallback
@@ -12,11 +12,31 @@ function load<T>(key: string, fallback: T): T {
   }
 }
 
-function save<T>(key: string, value: T) {
+/** Как load(), но без fallback — undefined значит «ключа нет», а не «пустое значение». Нужно для
+ * снятия снимка состояния в проекты: важно не путать «поле явно не сохранено» с любым конкретным значением. */
+export function loadOptional<T>(key: string): T | undefined {
+  try {
+    const raw = localStorage.getItem(PREFIX + key)
+    if (raw === null) return undefined
+    return JSON.parse(raw) as T
+  } catch {
+    return undefined
+  }
+}
+
+export function save<T>(key: string, value: T) {
   try {
     localStorage.setItem(PREFIX + key, JSON.stringify(value))
   } catch {
     // хранилище недоступно (приватный режим и т.п.) — молча игнорируем
+  }
+}
+
+export function remove(key: string) {
+  try {
+    localStorage.removeItem(PREFIX + key)
+  } catch {
+    // хранилище недоступно — молча игнорируем
   }
 }
 

@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { BRANDS, type Brand, type Product } from '../types'
 import {
   AP_MOUNT_LABELS,
@@ -20,6 +19,7 @@ import {
 import { sendDesignToBuildingPlan } from '../lib/buildingPlanBridge'
 import { SHOW_VIDEO_SURVEILLANCE } from '../lib/features'
 import { addProductsToRack } from '../lib/rackCart'
+import { usePersistedState } from '../lib/storage'
 import { ProductImage } from './ProductImage'
 
 interface Props {
@@ -41,7 +41,7 @@ const TIER_ACCENT: Record<Tier, { border: string; badge: string; ring: string }>
 }
 
 export function DesignerView({ catalog, onSentToRack, onSentToPlan }: Props) {
-  const [input, setInput] = useState<DesignerInput>({
+  const [input, setInput] = usePersistedState<DesignerInput>('designer-input', {
     buildingType: 'office',
     floors: [
       { lengthM: 20, widthM: 12.5, ceilingHeightM: 3, rooms: 0 },
@@ -61,7 +61,7 @@ export function DesignerView({ catalog, onSentToRack, onSentToPlan }: Props) {
     maxBudgetUSD: 0,
   })
   /** Пусто = «Все бренды (авто)», одна строка из 3 карточек. Один и более брендов — своя строка на каждый. */
-  const [selectedBrands, setSelectedBrands] = useState<Brand[]>([])
+  const [selectedBrands, setSelectedBrands] = usePersistedState<Brand[]>('designer-selected-brands', [])
 
   const brandsToShow: BrandFilter[] = selectedBrands.length > 0 ? selectedBrands : ['all']
   const resultsByBrand = brandsToShow.map((brand) => ({
