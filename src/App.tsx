@@ -26,7 +26,7 @@ const PRO_TABS: { id: ProTab; label: string; icon: ComponentType }[] = [
 ]
 
 function App() {
-  const [section, setSection] = useState<Section>('client')
+  const [section, setSection] = useState<Section>('pro')
   const [clientTab, setClientTab] = useState<ClientTab>('catalog')
   const [proTab, setProTab] = useState<ProTab>('designer')
 
@@ -50,7 +50,7 @@ function App() {
               </div>
               <div>
                 <h1 className="font-display text-lg font-extrabold text-[var(--text)]">SAR</h1>
-                <p className="text-xs text-[var(--text-muted)]">Сетевое оборудование</p>
+                <p className="text-xs text-[var(--text-muted)]">Инструменты для монтажников и интеграторов</p>
               </div>
             </div>
 
