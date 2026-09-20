@@ -20,7 +20,9 @@ function isRackMountable(category: Category) {
   return !WALL_MOUNTED_CATEGORIES.has(category)
 }
 
-export function RackDesignerView({ catalog }: Props) {
+/** Интерактивная рабочая область серверного шкафа — поиск/добавление оборудования, сам шкаф и то, что
+ * подключено к нему, но стоит на объекте. Встраивается в «План здания», как физическая часть проекта. */
+export function RackWorkspace({ catalog }: Props) {
   const [rackHeight, setRackHeight] = usePersistedState<(typeof RACK_HEIGHTS)[number]>('rack-height', 42)
   const [lines, setLines] = usePersistedState<RackLine[]>('rack-lines', [])
   const [search, setSearch] = useState('')
@@ -114,34 +116,18 @@ export function RackDesignerView({ catalog }: Props) {
 
   return (
     <div>
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3 no-print">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900">Дизайнер серверного шкафа</h1>
-          <p className="text-sm text-slate-500">
-            Соберите проект как в UniFi Design Center — но из оборудования любого бренда каталога. Добавляйте
-            позиции карточками, меняйте количество степпером. В шкаф идут только роутеры, коммутаторы, NVR и
-            аксессуары — точки доступа и камеры монтируются отдельно на объекте и не занимают юниты.
-          </p>
+      {lines.length > 0 && (
+        <div className="no-print mb-3 flex justify-end">
+          <button
+            onClick={() => {
+              if (confirm('Очистить текущий проект шкафа?')) setLines([])
+            }}
+            className="rounded border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100"
+          >
+            Очистить шкаф
+          </button>
         </div>
-        {lines.length > 0 && (
-          <div className="flex gap-2">
-            <button
-              onClick={() => {
-                if (confirm('Очистить текущий проект шкафа?')) setLines([])
-              }}
-              className="rounded border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100"
-            >
-              Очистить шкаф
-            </button>
-            <button
-              onClick={() => window.print()}
-              className="rounded bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700"
-            >
-              Печать / сохранить как PDF
-            </button>
-          </div>
-        )}
-      </div>
+      )}
 
       {/* Рабочая область в три колонки — каждая со своей прокруткой, как в UniFi Design Center: не листаем всю
           страницу, а прокручиваем только тот блок, который сейчас смотрим. */}

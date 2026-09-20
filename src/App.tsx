@@ -2,9 +2,8 @@ import { useState, type ComponentType } from 'react'
 import { BuildingPlanView } from './components/BuildingPlanView'
 import { CatalogView } from './components/CatalogView'
 import { DesignerView } from './components/DesignerView'
-import { CatalogIcon, DesignerIcon, PlanIcon, QuoteIcon, RackIcon, ToolsIcon } from './components/NavIcons'
+import { CatalogIcon, DesignerIcon, PlanIcon, QuoteIcon, ToolsIcon } from './components/NavIcons'
 import { QuoteView } from './components/QuoteView'
-import { RackDesignerView } from './components/RackDesignerView'
 import { CATALOG_VERSION, PRODUCTS } from './data/products'
 import { brandColor } from './lib/brandTheme'
 import { visibleBrands } from './lib/features'
@@ -12,7 +11,7 @@ import { usePersistedList } from './lib/storage'
 
 type Section = 'client' | 'pro'
 type ClientTab = 'catalog' | 'quote'
-type ProTab = 'designer' | 'plan' | 'rack'
+type ProTab = 'designer' | 'plan'
 
 const CLIENT_TABS: { id: ClientTab; label: string; icon: ComponentType }[] = [
   { id: 'catalog', label: 'Каталог', icon: CatalogIcon },
@@ -22,7 +21,6 @@ const CLIENT_TABS: { id: ClientTab; label: string; icon: ComponentType }[] = [
 const PRO_TABS: { id: ProTab; label: string; icon: ComponentType }[] = [
   { id: 'designer', label: 'Подбор по объекту', icon: DesignerIcon },
   { id: 'plan', label: 'План здания', icon: PlanIcon },
-  { id: 'rack', label: 'Серверный шкаф', icon: RackIcon },
 ]
 
 function App() {
@@ -125,12 +123,11 @@ function App() {
         {section === 'pro' && proTab === 'designer' && (
           <DesignerView
             catalog={catalog.items}
-            onSentToRack={() => setProTab('rack')}
+            onSentToRack={() => setProTab('plan')}
             onSentToPlan={() => setProTab('plan')}
           />
         )}
         {section === 'pro' && proTab === 'plan' && <BuildingPlanView catalog={catalog.items} />}
-        {section === 'pro' && proTab === 'rack' && <RackDesignerView catalog={catalog.items} />}
       </main>
     </div>
   )

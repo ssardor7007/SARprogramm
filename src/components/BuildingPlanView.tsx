@@ -16,10 +16,8 @@ import {
   type Room,
 } from '../lib/buildingPlan'
 import { BUILDING_TYPE_LABELS, wallMaterialLabel, type BuildingType, type WallMaterial } from '../lib/designer'
-import type { RackLine } from '../lib/rackCart'
 import { genId, usePersistedState } from '../lib/storage'
-import { RackElevation } from './RackElevation'
-import { RackTopology } from './RackTopology'
+import { RackWorkspace } from './RackWorkspace'
 
 interface Props {
   catalog: Product[]
@@ -86,8 +84,6 @@ type DragState =
 
 export function BuildingPlanView({ catalog }: Props) {
   const [plan, setPlan] = usePersistedState<BuildingPlan>('building-plan', defaultPlan())
-  const [rackLines] = usePersistedState<RackLine[]>('rack-lines', [])
-  const [rackHeight] = usePersistedState<number>('rack-height', 42)
   const [activeFloorId, setActiveFloorId] = useState(plan.floors[0]?.id)
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null)
   const [drawRect, setDrawRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
@@ -585,26 +581,6 @@ export function BuildingPlanView({ catalog }: Props) {
               </div>
             </div>
           </div>
-
-          <div className="mt-4">
-            {isServerFloor ? (
-              <>
-                <h2 className="mb-1 text-sm font-semibold text-slate-700">Серверный шкаф ({rackHeight}U)</h2>
-                <p className="mb-3 text-xs text-slate-400">
-                  Оборудование из вкладки «Серверный шкаф» — роутер, коммутаторы и прочее, что монтируется внутрь на
-                  этом, серверном этаже.
-                </p>
-                <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-start sm:justify-center">
-                  <RackElevation catalog={catalog} lines={rackLines} rackHeight={rackHeight} />
-                  <RackTopology catalog={catalog} lines={rackLines} />
-                </div>
-              </>
-            ) : (
-              <p className="text-xs text-slate-400">
-                🖧 Серверный шкаф находится на этаже «{plan.floors.find((f) => f.id === plan.serverFloorId)?.name}».
-              </p>
-            )}
-          </div>
         </div>
 
         <div className="space-y-4">
@@ -738,6 +714,16 @@ export function BuildingPlanView({ catalog }: Props) {
             </button>
           </div>
         </div>
+      </div>
+
+      <div className="mt-8">
+        <h2 className="text-lg font-semibold text-slate-900">Серверный шкаф</h2>
+        <p className="mb-4 text-sm text-slate-500">
+          На этаже «{plan.floors.find((f) => f.id === plan.serverFloorId)?.name}». Добавляйте оборудование карточками
+          в поиске — роутеры, коммутаторы и прочее встанут в шкаф, а точки доступа и камеры появятся справа как
+          подключённые к нему, но стоящие на объекте.
+        </p>
+        <RackWorkspace catalog={catalog} />
       </div>
     </div>
   )

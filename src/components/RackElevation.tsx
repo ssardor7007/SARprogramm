@@ -17,7 +17,7 @@ interface Props {
   rackHeight: number
 }
 
-/** Визуальный серверный шкаф (elevation view) — общий вид для «Дизайнера серверного шкафа» и «Плана здания». */
+/** Визуальный серверный шкаф (elevation view), встроенный в «Дизайнер серверного шкафа» на «Плане здания». */
 export function RackElevation({ catalog, lines, rackHeight }: Props) {
   const rackLines = lines.filter((l) => {
     const p = catalog.find((c) => c.id === l.productId)
