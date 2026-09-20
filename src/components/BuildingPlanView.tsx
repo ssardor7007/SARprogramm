@@ -1,10 +1,12 @@
-import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import type { Product } from '../types'
 import {
   autoPlaceAPs,
   CANVAS_H_M,
   CANVAS_W_M,
+  computeHeatmapGrid,
   generateFloorPlan,
+  HEATMAP_STEP_M,
   newPlacedAP,
   planBuilding,
   wallMaterialColor,
@@ -32,6 +34,28 @@ function round1(v: number) {
 
 function clamp(v: number, min: number, max: number) {
   return Math.min(Math.max(v, min), max)
+}
+
+function lerp(a: number, b: number, t: number) {
+  return a + (b - a) * t
+}
+
+/** Красный → жёлтый → зелёный по силе сигнала 0..1, с альфой, растущей вместе с силой. */
+function heatColor(strength: number): string {
+  const s = clamp(strength, 0, 1)
+  if (s < 0.04) return 'transparent'
+  const stops: [number, number, number][] = [
+    [239, 68, 68],
+    [234, 179, 8],
+    [34, 197, 94],
+  ]
+  const [c1, c2] = s <= 0.5 ? [stops[0], stops[1]] : [stops[1], stops[2]]
+  const t = s <= 0.5 ? s / 0.5 : (s - 0.5) / 0.5
+  const r = Math.round(lerp(c1[0], c2[0], t))
+  const g = Math.round(lerp(c1[1], c2[1], t))
+  const b = Math.round(lerp(c1[2], c2[2], t))
+  const alpha = 0.12 + s * 0.5
+  return `rgba(${r}, ${g}, ${b}, ${alpha.toFixed(2)})`
 }
 
 function defaultPlan(): BuildingPlan {
@@ -71,6 +95,7 @@ export function BuildingPlanView({ catalog }: Props) {
     floorHeightM: 3.2,
   })
   const canvasRef = useRef<HTMLDivElement>(null)
+  const heatmapCanvasRef = useRef<HTMLCanvasElement>(null)
   const dragRef = useRef<DragState | null>(null)
   const drawStartRef = useRef<{ x: number; y: number } | null>(null)
 
@@ -94,6 +119,20 @@ export function BuildingPlanView({ catalog }: Props) {
   const activeFloor = plan.floors.find((f) => f.id === activeFloorId) ?? plan.floors[0]
   const result = planBuilding(plan, catalog)
   const activeFloorResult = result.perFloor.find((f) => f.floor.id === activeFloor.id)
+
+  useEffect(() => {
+    const canvas = heatmapCanvasRef.current
+    if (!canvas || !activeFloorResult) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    const cellPx = HEATMAP_STEP_M * PX_PER_M
+    for (const cell of computeHeatmapGrid(activeFloor, activeFloorResult.aps)) {
+      if (cell.strength < 0.04) continue
+      ctx.fillStyle = heatColor(cell.strength)
+      ctx.fillRect((cell.x - HEATMAP_STEP_M / 2) * PX_PER_M, (cell.y - HEATMAP_STEP_M / 2) * PX_PER_M, cellPx + 0.5, cellPx + 0.5)
+    }
+  }, [activeFloor, activeFloorResult])
 
   function updateFloor(floorId: string, updater: (f: Floor) => Floor) {
     setPlan((prev) => ({ ...prev, floors: prev.floors.map((f) => (f.id === floorId ? updater(f) : f)) }))
@@ -489,27 +528,15 @@ export function BuildingPlanView({ catalog }: Props) {
                 />
               )}
 
-              <svg width={CANVAS_W_PX} height={CANVAS_H_PX} className="pointer-events-none absolute inset-0" style={{ zIndex: 2 }}>
-                <defs>
-                  {activeFloorResult?.aps.map((ap) => (
-                    <radialGradient key={ap.id} id={`heat-${ap.id}`} cx="50%" cy="50%" r="50%">
-                      <stop offset="0%" stopColor="#22c55e" stopOpacity={0.55} />
-                      <stop offset="45%" stopColor="#22c55e" stopOpacity={0.35} />
-                      <stop offset="60%" stopColor="#eab308" stopOpacity={0.32} />
-                      <stop offset="82%" stopColor="#ef4444" stopOpacity={0.22} />
-                      <stop offset="100%" stopColor="#ef4444" stopOpacity={0} />
-                    </radialGradient>
-                  ))}
-                </defs>
-                {activeFloorResult?.aps.map((ap) => (
-                  <circle
-                    key={`heat-c-${ap.id}`}
-                    cx={ap.pos.x * PX_PER_M}
-                    cy={ap.pos.y * PX_PER_M}
-                    r={ap.radius * PX_PER_M}
-                    fill={`url(#heat-${ap.id})`}
-                  />
-                ))}
+              <canvas
+                ref={heatmapCanvasRef}
+                width={CANVAS_W_PX}
+                height={CANVAS_H_PX}
+                className="pointer-events-none absolute inset-0"
+                style={{ zIndex: 2, width: CANVAS_W_PX, height: CANVAS_H_PX }}
+              />
+
+              <svg width={CANVAS_W_PX} height={CANVAS_H_PX} className="pointer-events-none absolute inset-0" style={{ zIndex: 3 }}>
                 {activeFloorResult?.aps.map((ap) => (
                   <g key={ap.id}>
                     <line

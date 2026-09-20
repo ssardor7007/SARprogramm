@@ -76,6 +76,85 @@ export const COVERAGE_RADIUS_M: Record<WallMaterial, number> = {
 }
 const RADIUS_BY_RANK = [COVERAGE_RADIUS_M.open, COVERAGE_RADIUS_M.drywall, COVERAGE_RADIUS_M.brick, COVERAGE_RADIUS_M.concrete]
 
+/** Доля сигнала, которая проходит сквозь ОДНУ стену этого материала — «открытое пространство» физической стены не имеет, поэтому не ослабляет. */
+const WALL_PASS_FACTOR: Record<WallMaterial, number> = {
+  open: 1,
+  drywall: 0.6,
+  brick: 0.4,
+  concrete: 0.22,
+}
+
+/** Комната, в которой лежит точка — верхняя из нарисованных, если они перекрываются. */
+function roomAt(rooms: Room[], x: number, y: number): Room | undefined {
+  for (let i = rooms.length - 1; i >= 0; i--) {
+    const r = rooms[i]
+    if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) return r
+  }
+  return undefined
+}
+
+/**
+ * Ослабление сигнала на пути от точки доступа до точки замера: «прошагиваем»
+ * отрезок между ними и на каждой смене помещения умножаем накопленный сигнал
+ * на коэффициент прохождения стены материала того помещения, в которое зашли.
+ * Так тепловая карта реально гаснет за стеной, а не просто угасает по кругу
+ * от расстояния, как будто стен вообще нет.
+ */
+function wallAttenuation(from: Point, to: Point, rooms: Room[]): number {
+  const dist = euclid(from, to)
+  if (dist < 0.05 || rooms.length === 0) return 1
+  const steps = Math.max(4, Math.ceil(dist / 0.35))
+  let attenuation = 1
+  let prevRoom = roomAt(rooms, from.x, from.y)
+  for (let i = 1; i <= steps; i++) {
+    const t = i / steps
+    const room = roomAt(rooms, from.x + (to.x - from.x) * t, from.y + (to.y - from.y) * t)
+    if ((room?.id ?? null) !== (prevRoom?.id ?? null)) {
+      const material = room?.wallMaterial ?? prevRoom?.wallMaterial
+      if (material) attenuation *= WALL_PASS_FACTOR[material]
+    }
+    prevRoom = room
+  }
+  return attenuation
+}
+
+export interface HeatCell {
+  /** Метры, левый верхний угол клетки */
+  x: number
+  y: number
+  /** Лучший сигнал среди всех точек доступа в этой клетке, 0..1 */
+  strength: number
+}
+
+export const HEATMAP_STEP_M = 0.5
+
+/**
+ * Сетка «сила сигнала» для тепловой карты этажа. В отличие от простого круга
+ * вокруг точки доступа, здесь для каждой клетки идёт луч до каждой AP и
+ * считается, сколько стен и какого материала он пересёк — за бетонной стеной
+ * сигнал реально гаснет, а не тянется тем же цветом, что и в открытом коридоре.
+ */
+export function computeHeatmapGrid(floor: Floor, aps: APPlacement[]): HeatCell[] {
+  const cells: HeatCell[] = []
+  if (aps.length === 0) return cells
+  for (let y = HEATMAP_STEP_M / 2; y < CANVAS_H_M; y += HEATMAP_STEP_M) {
+    for (let x = HEATMAP_STEP_M / 2; x < CANVAS_W_M; x += HEATMAP_STEP_M) {
+      let best = 0
+      for (const ap of aps) {
+        const dist = euclid(ap.pos, { x, y })
+        const reach = ap.radius * 1.4
+        if (dist > reach) continue
+        const distanceFalloff = 1 - dist / reach
+        if (distanceFalloff <= best) continue
+        const strength = distanceFalloff * wallAttenuation(ap.pos, { x, y }, floor.rooms)
+        if (strength > best) best = strength
+      }
+      cells.push({ x, y, strength: best })
+    }
+  }
+  return cells
+}
+
 const CABLE_SLACK = 1.15
 /** Запас на спуск от потолка до точки доступа + разделка на патч-панели, метров */
 const DROP_ALLOWANCE_M = 3
