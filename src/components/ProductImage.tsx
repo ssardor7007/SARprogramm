@@ -23,8 +23,11 @@ export function ProductImage({ imageUrl, brand, category, size = 'md' }: Props) 
   const dim = size === 'xs' ? 'h-5 w-5' : size === 'sm' ? 'h-10 w-10' : size === 'lg' ? 'h-24 w-24' : 'h-16 w-16'
   const iconDim = size === 'xs' ? 'h-3 w-3' : size === 'sm' ? 'h-5 w-5' : size === 'lg' ? 'h-10 w-10' : 'h-8 w-8'
 
-  // 'fill' — заполняет собой родителя (у которого должен быть position: relative), а не занимает
-  // фиксированный квадрат: нужно для фотографии оборудования во весь юнит стойки.
+  // 'fill' — заполняет собой родителя (у которого должен быть position: relative и overflow: hidden),
+  // а не занимает фиксированный квадрат: нужно для юнита стойки. Наши фото — это весь прибор целиком,
+  // снятый чуть сверху-спереди с отступами по краям, а не отдельная лицевая панель — поэтому кадрируем
+  // (object-cover + сдвиг вниз + небольшой зум), чтобы в юните было видно панель с портами край в край,
+  // без белых полей и верхушки корпуса, как на настоящих рендерах серверных шкафов.
   if (size === 'fill') {
     if (imageUrl && !failed) {
       return (
@@ -32,7 +35,8 @@ export function ProductImage({ imageUrl, brand, category, size = 'md' }: Props) 
           src={resolveSrc(imageUrl)}
           alt={brand}
           onError={() => setFailed(true)}
-          className="absolute inset-0 h-full w-full object-contain p-1"
+          className="absolute inset-0 h-full w-full object-cover"
+          style={{ objectPosition: '50% 78%', transform: 'scale(1.35)' }}
         />
       )
     }

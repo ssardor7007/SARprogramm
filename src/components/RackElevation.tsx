@@ -57,7 +57,7 @@ export function RackElevation({ catalog, lines, rackHeight }: Props) {
                 <div
                   key={line.id}
                   style={{ height: heightU * UNIT_PX, borderColor: color }}
-                  className="relative border-b border-slate-800 border-l-4 bg-gradient-to-b from-slate-100 to-slate-200"
+                  className="relative overflow-hidden border-b border-slate-800 border-l-4 bg-gradient-to-b from-slate-100 to-slate-200"
                 >
                   <ProductImage imageUrl={p.imageUrl} brand={p.brand} category={p.category} size="fill" />
 
