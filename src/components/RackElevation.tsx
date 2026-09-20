@@ -1,8 +1,9 @@
 import { brandColor } from '../lib/brandTheme'
 import type { RackLine } from '../lib/rackCart'
 import type { Category, Product } from '../types'
+import { ProductImage } from './ProductImage'
 
-const UNIT_PX = 22
+const UNIT_PX = 28
 
 /** Точки доступа и камеры монтируются на стене/потолке объекта, а не в шкаф — не занимают юниты. */
 const WALL_MOUNTED_CATEGORIES = new Set<Category>(['ap', 'camera'])
@@ -16,7 +17,7 @@ interface Props {
   rackHeight: number
 }
 
-/** Визуальная стойка (elevation view) — общий вид для «Дизайнера стойки» и «Плана здания». */
+/** Визуальный серверный шкаф (elevation view) — общий вид для «Дизайнера серверного шкафа» и «Плана здания». */
 export function RackElevation({ catalog, lines, rackHeight }: Props) {
   const rackLines = lines.filter((l) => {
     const p = catalog.find((c) => c.id === l.productId)
@@ -39,8 +40,9 @@ export function RackElevation({ catalog, lines, rackHeight }: Props) {
               <div
                 key={line.id}
                 style={{ height: heightU * UNIT_PX, backgroundColor: `${color}22`, borderColor: color }}
-                className="flex items-center gap-2 border-b border-l-4 px-2 text-white"
+                className="flex items-center gap-1.5 border-b border-l-4 px-1.5 text-white"
               >
+                <ProductImage imageUrl={p.imageUrl} brand={p.brand} category={p.category} size="xs" />
                 <span className="shrink-0 rounded bg-black/30 px-1 text-[10px] leading-4">{heightU}U</span>
                 <span className="truncate text-xs font-medium">
                   {p.brand} {p.model}
@@ -63,7 +65,7 @@ export function RackElevation({ catalog, lines, rackHeight }: Props) {
 
       {overCapacity && (
         <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-          Превышена высота стойки: {usedU}U из {rackHeight}U. Уберите позицию или выберите стойку выше.
+          Превышена высота шкафа: {usedU}U из {rackHeight}U. Уберите позицию или выберите шкаф выше.
         </div>
       )}
     </div>

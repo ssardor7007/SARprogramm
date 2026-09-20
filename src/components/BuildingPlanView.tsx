@@ -19,6 +19,7 @@ import { BUILDING_TYPE_LABELS, wallMaterialLabel, type BuildingType, type WallMa
 import type { RackLine } from '../lib/rackCart'
 import { genId, usePersistedState } from '../lib/storage'
 import { RackElevation } from './RackElevation'
+import { RackTopology } from './RackTopology'
 
 interface Props {
   catalog: Product[]
@@ -413,7 +414,7 @@ export function BuildingPlanView({ catalog }: Props) {
                 : { borderColor: '#e2e8f0', color: '#475569' }
             }
           >
-            {f.id === plan.serverFloorId && <span title="Серверная / стойка">🖧</span>}
+            {f.id === plan.serverFloorId && <span title="Серверная / шкаф">🖧</span>}
             {f.name}
           </button>
         ))}
@@ -588,16 +589,17 @@ export function BuildingPlanView({ catalog }: Props) {
           <div className="mt-4">
             {isServerFloor ? (
               <>
-                <h2 className="mb-1 text-sm font-semibold text-slate-700">Серверная стойка ({rackHeight}U)</h2>
+                <h2 className="mb-1 text-sm font-semibold text-slate-700">Серверный шкаф ({rackHeight}U)</h2>
                 <p className="mb-3 text-xs text-slate-400">
-                  Оборудование из вкладки «Стойка» — роутер, коммутаторы и прочее, что монтируется в шкаф на этом,
-                  серверном этаже.
+                  Оборудование из вкладки «Серверный шкаф» — роутер, коммутаторы и прочее, что монтируется внутрь на
+                  этом, серверном этаже.
                 </p>
                 <RackElevation catalog={catalog} lines={rackLines} rackHeight={rackHeight} />
+                <RackTopology catalog={catalog} lines={rackLines} />
               </>
             ) : (
               <p className="text-xs text-slate-400">
-                🖧 Серверная стойка находится на этаже «{plan.floors.find((f) => f.id === plan.serverFloorId)?.name}».
+                🖧 Серверный шкаф находится на этаже «{plan.floors.find((f) => f.id === plan.serverFloorId)?.name}».
               </p>
             )}
           </div>

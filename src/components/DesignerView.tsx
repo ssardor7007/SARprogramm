@@ -24,7 +24,7 @@ import { ProductImage } from './ProductImage'
 
 interface Props {
   catalog: Product[]
-  /** Вызывается после отправки варианта в «Дизайнер стойки» — используется, чтобы переключить вкладку. */
+  /** Вызывается после отправки варианта в «Дизайнер серверного шкафа» — используется, чтобы переключить вкладку. */
   onSentToRack?: () => void
   /** Вызывается после отправки промеров в «План здания» — используется, чтобы переключить вкладку. */
   onSentToPlan?: () => void
@@ -549,7 +549,7 @@ export function DesignerView({ catalog, onSentToRack, onSentToPlan }: Props) {
                           onClick={() => sendTierToRack(t)}
                           className="no-print rounded border border-slate-300 px-2 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
                         >
-                          Добавить в «Дизайнер стойки» →
+                          Добавить в «Дизайнер серверного шкафа» →
                         </button>
                         <button
                           onClick={() => sendToBuildingPlan(t)}

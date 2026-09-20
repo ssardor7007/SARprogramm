@@ -116,7 +116,7 @@ export function RackDesignerView({ catalog }: Props) {
     <div>
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3 no-print">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">Дизайнер стойки</h1>
+          <h1 className="text-xl font-semibold text-slate-900">Дизайнер серверного шкафа</h1>
           <p className="text-sm text-slate-500">
             Соберите проект как в UniFi Design Center — но из оборудования любого бренда каталога. Добавляйте
             позиции карточками, меняйте количество степпером. В шкаф идут только роутеры, коммутаторы, NVR и
@@ -127,11 +127,11 @@ export function RackDesignerView({ catalog }: Props) {
           <div className="flex gap-2">
             <button
               onClick={() => {
-                if (confirm('Очистить текущий проект стойки?')) setLines([])
+                if (confirm('Очистить текущий проект шкафа?')) setLines([])
               }}
               className="rounded border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100"
             >
-              Очистить стойку
+              Очистить шкаф
             </button>
             <button
               onClick={() => window.print()}
@@ -288,7 +288,7 @@ export function RackDesignerView({ catalog }: Props) {
               <h2 className="mb-2 text-sm font-semibold text-slate-700">Устанавливается на объекте — не в шкафу</h2>
               <p className="mb-3 text-xs text-slate-400">
                 Точки доступа и камеры монтируются на стене/потолке и подключаются кабелем к порту коммутатора —
-                в юниты стойки не входят, но учтены в общей смете справа.
+                в юниты шкафа не входят, но учтены в общей смете справа.
               </p>
               <div className="space-y-4">
                 {groupedWallLines.map(({ category, items }) => (
@@ -340,7 +340,7 @@ export function RackDesignerView({ catalog }: Props) {
         {/* Rack elevation */}
         <div>
           <div className="no-print mb-3 flex items-center justify-between">
-            <label className="text-sm font-medium text-slate-700">Высота стойки</label>
+            <label className="text-sm font-medium text-slate-700">Высота шкафа</label>
             <select
               className="rounded border border-slate-300 px-2 py-1 text-sm"
               value={rackHeight}
@@ -355,7 +355,7 @@ export function RackDesignerView({ catalog }: Props) {
           </div>
 
           <div className="hidden print:block mb-3">
-            <h1 className="text-lg font-semibold">Проект стойки {rackHeight}U</h1>
+            <h1 className="text-lg font-semibold">Проект шкафа {rackHeight}U</h1>
             <p className="text-sm text-slate-500">{new Date().toLocaleDateString('ru-RU')}</p>
           </div>
 

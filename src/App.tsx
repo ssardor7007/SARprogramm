@@ -22,7 +22,7 @@ const CLIENT_TABS: { id: ClientTab; label: string; icon: ComponentType }[] = [
 const PRO_TABS: { id: ProTab; label: string; icon: ComponentType }[] = [
   { id: 'designer', label: 'Подбор по объекту', icon: DesignerIcon },
   { id: 'plan', label: 'План здания', icon: PlanIcon },
-  { id: 'rack', label: 'Стойка', icon: RackIcon },
+  { id: 'rack', label: 'Серверный шкаф', icon: RackIcon },
 ]
 
 function App() {
