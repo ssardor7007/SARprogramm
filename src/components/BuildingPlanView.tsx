@@ -594,8 +594,10 @@ export function BuildingPlanView({ catalog }: Props) {
                   Оборудование из вкладки «Серверный шкаф» — роутер, коммутаторы и прочее, что монтируется внутрь на
                   этом, серверном этаже.
                 </p>
-                <RackElevation catalog={catalog} lines={rackLines} rackHeight={rackHeight} />
-                <RackTopology catalog={catalog} lines={rackLines} />
+                <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-start sm:justify-center">
+                  <RackElevation catalog={catalog} lines={rackLines} rackHeight={rackHeight} />
+                  <RackTopology catalog={catalog} lines={rackLines} />
+                </div>
               </>
             ) : (
               <p className="text-xs text-slate-400">
