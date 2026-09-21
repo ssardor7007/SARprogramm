@@ -1,4 +1,5 @@
-import { BRANDS, type Brand, type Product } from '../types'
+import { useMemo, useState } from 'react'
+import { BRANDS, CATEGORY_LABELS, type Brand, type Product } from '../types'
 import {
   AP_MOUNT_LABELS,
   BUILDING_TYPE_LABELS,
@@ -19,7 +20,7 @@ import {
 import { sendDesignToBuildingPlan } from '../lib/buildingPlanBridge'
 import { SHOW_VIDEO_SURVEILLANCE } from '../lib/features'
 import { addProductsToRack } from '../lib/rackCart'
-import { usePersistedState } from '../lib/storage'
+import { genId, usePersistedState } from '../lib/storage'
 import { ProductImage } from './ProductImage'
 
 interface Props {
@@ -38,6 +39,13 @@ const TIER_ACCENT: Record<Tier, { border: string; badge: string; ring: string }>
   budget: { border: 'border-slate-200', badge: 'bg-slate-100 text-slate-600', ring: '' },
   mid: { border: 'border-blue-200', badge: 'bg-blue-100 text-blue-700', ring: '' },
   premium: { border: 'border-violet-200', badge: 'bg-violet-100 text-violet-700', ring: '' },
+}
+
+/** Строка «своего набора» — товар и количество, которые выбрал сам пользователь, а не алгоритм. */
+interface CustomLine {
+  id: string
+  productId: string
+  qty: number
 }
 
 export function DesignerView({ catalog, onSentToRack, onSentToPlan }: Props) {
@@ -62,6 +70,9 @@ export function DesignerView({ catalog, onSentToRack, onSentToPlan }: Props) {
   })
   /** Пусто = «Все бренды (авто)», одна строка из 3 карточек. Один и более брендов — своя строка на каждый. */
   const [selectedBrands, setSelectedBrands] = usePersistedState<Brand[]>('designer-selected-brands', [])
+  /** Четвёртая карточка — «Свой набор»: товары выбирает сам пользователь, а не алгоритм по сегментам. */
+  const [customLines, setCustomLines] = usePersistedState<CustomLine[]>('designer-custom-lines', [])
+  const [customSearch, setCustomSearch] = useState('')
 
   const brandsToShow: BrandFilter[] = selectedBrands.length > 0 ? selectedBrands : ['all']
   const resultsByBrand = brandsToShow.map((brand) => ({
@@ -113,6 +124,50 @@ export function DesignerView({ catalog, onSentToRack, onSentToPlan }: Props) {
       switchProductId: byRole('PoE-коммутатор'),
       routerProductId: byRole('Роутер / шлюз'),
       controllerProductId: byRole('Контроллер сети (Omada)'),
+    })
+    onSentToPlan?.()
+  }
+
+  const customResolved = customLines
+    .map((l) => ({ ...l, product: catalog.find((p) => p.id === l.productId) }))
+    .filter((l): l is CustomLine & { product: Product } => !!l.product)
+  const customTotalUSD = customResolved.reduce((sum, l) => sum + l.product.priceUSD * l.qty, 0)
+  const customBrands = Array.from(new Set(customResolved.map((l) => l.product.brand)))
+
+  const customSearchResults = useMemo(() => {
+    const q = customSearch.trim().toLowerCase()
+    if (!q) return []
+    return catalog.filter((p) => `${p.brand} ${p.model}`.toLowerCase().includes(q)).slice(0, 8)
+  }, [customSearch, catalog])
+
+  function addCustomProduct(product: Product) {
+    setCustomLines((prev) => {
+      const existing = prev.find((l) => l.productId === product.id)
+      if (existing) return prev.map((l) => (l.id === existing.id ? { ...l, qty: l.qty + 1 } : l))
+      return [...prev, { id: genId('custom'), productId: product.id, qty: 1 }]
+    })
+    setCustomSearch('')
+  }
+
+  function setCustomQty(id: string, qty: number) {
+    setCustomLines((prev) => prev.map((l) => (l.id === id ? { ...l, qty: Math.max(1, qty) } : l)))
+  }
+
+  function removeCustomLine(id: string) {
+    setCustomLines((prev) => prev.filter((l) => l.id !== id))
+  }
+
+  function sendCustomToRack() {
+    addProductsToRack(customResolved.map((l) => ({ product: l.product, qty: l.qty })))
+    onSentToRack?.()
+  }
+
+  function sendCustomToBuildingPlan() {
+    const byCategory = (cat: Product['category']) => customResolved.find((l) => l.product.category === cat)?.product.id
+    sendDesignToBuildingPlan(input.buildingType, input.wallMaterial, input.floors, {
+      apProductId: byCategory('ap'),
+      switchProductId: byCategory('switch'),
+      routerProductId: byCategory('router'),
     })
     onSentToPlan?.()
   }
@@ -473,7 +528,7 @@ export function DesignerView({ catalog, onSentToRack, onSentToPlan }: Props) {
                 {r.recommendationReason}
               </div>
 
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {TIER_ORDER.map((tier) => {
                   const t = r.tiers.find((rr) => rr.tier === tier)!
                   const accent = TIER_ACCENT[tier]
@@ -561,6 +616,94 @@ export function DesignerView({ catalog, onSentToRack, onSentToPlan }: Props) {
                     </div>
                   )
                 })}
+
+                <div className="flex flex-col rounded-lg border-2 border-dashed border-slate-300 bg-white p-4 print:break-inside-avoid">
+                  <div className="mb-1 flex items-center justify-between">
+                    <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">Свой набор</span>
+                  </div>
+                  <p className="mb-2 text-xs text-slate-400">{customBrands.join(', ') || 'Выберите товары сами'}</p>
+
+                  <div className="mb-1 text-2xl font-bold text-slate-900">${customTotalUSD.toLocaleString()}</div>
+                  <p className="mb-2 text-xs text-slate-400">{customResolved.length} позиций в списке</p>
+
+                  <ul className="mb-2 flex-1 space-y-2 text-sm">
+                    {customResolved.map((l) => (
+                      <li key={l.id} className="flex items-start gap-2 border-t border-slate-100 pt-2 first:border-0 first:pt-0">
+                        <ProductImage imageUrl={l.product.imageUrl} brand={l.product.brand} category={l.product.category} size="sm" />
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate font-medium text-slate-900" title={`${l.product.brand} ${l.product.model}`}>
+                            {l.product.brand} {l.product.model}
+                          </div>
+                          <div className="text-xs text-slate-400">{CATEGORY_LABELS[l.product.category]}</div>
+                          <div className="no-print mt-1 flex items-center gap-1">
+                            <button
+                              onClick={() => setCustomQty(l.id, l.qty - 1)}
+                              className="h-5 w-5 rounded border border-slate-300 text-xs leading-none text-slate-600 hover:bg-slate-100"
+                            >
+                              −
+                            </button>
+                            <span className="w-5 text-center text-xs font-medium">{l.qty}</span>
+                            <button
+                              onClick={() => setCustomQty(l.id, l.qty + 1)}
+                              className="h-5 w-5 rounded border border-slate-300 text-xs leading-none text-slate-600 hover:bg-slate-100"
+                            >
+                              +
+                            </button>
+                            <button
+                              onClick={() => removeCustomLine(l.id)}
+                              className="ml-2 text-xs text-red-500 hover:text-red-700"
+                              title="Убрать"
+                            >
+                              Убрать
+                            </button>
+                          </div>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+
+                  <div className="no-print relative mb-3">
+                    <input
+                      value={customSearch}
+                      onChange={(e) => setCustomSearch(e.target.value)}
+                      placeholder="+ добавить товар (бренд, модель)"
+                      className="w-full rounded border border-slate-300 px-2 py-1 text-xs"
+                    />
+                    {customSearchResults.length > 0 && (
+                      <div className="absolute inset-x-0 top-full z-10 mt-1 max-h-48 overflow-y-auto rounded border border-slate-200 bg-white shadow-lg">
+                        {customSearchResults.map((p) => (
+                          <button
+                            key={p.id}
+                            onClick={() => addCustomProduct(p)}
+                            className="flex w-full items-center justify-between px-2 py-1.5 text-left text-xs hover:bg-slate-50"
+                          >
+                            <span className="truncate">
+                              {p.brand} {p.model}
+                            </span>
+                            <span className="shrink-0 text-slate-400">${p.priceUSD}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-1 flex flex-col gap-1.5">
+                    <button
+                      onClick={sendCustomToRack}
+                      disabled={customResolved.length === 0}
+                      className="no-print rounded border border-slate-300 px-2 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent"
+                    >
+                      Добавить в шкаф на плане здания →
+                    </button>
+                    <button
+                      onClick={sendCustomToBuildingPlan}
+                      disabled={customResolved.length === 0}
+                      className="no-print rounded border border-slate-300 px-2 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent"
+                    >
+                      Показать на плане здания →
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           ))}
