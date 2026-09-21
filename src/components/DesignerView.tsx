@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { BRANDS, CATEGORY_LABELS, type Brand, type Product } from '../types'
 import {
   AP_MOUNT_LABELS,
@@ -41,8 +41,8 @@ const TIER_ACCENT: Record<Tier, { border: string; badge: string; ring: string }>
   premium: { border: 'border-violet-200', badge: 'bg-violet-100 text-violet-700', ring: '' },
 }
 
-/** Строка «своего набора» — товар и количество, которые выбрал сам пользователь, а не алгоритм. */
-interface CustomLine {
+/** Строка ручной правки карточки сегмента — товар и количество, которые задал сам пользователь. */
+interface OverrideLine {
   id: string
   productId: string
   qty: number
@@ -70,9 +70,14 @@ export function DesignerView({ catalog, onSentToRack, onSentToPlan }: Props) {
   })
   /** Пусто = «Все бренды (авто)», одна строка из 3 карточек. Один и более брендов — своя строка на каждый. */
   const [selectedBrands, setSelectedBrands] = usePersistedState<Brand[]>('designer-selected-brands', [])
-  /** Четвёртая карточка — «Свой набор»: товары выбирает сам пользователь, а не алгоритм по сегментам. */
-  const [customLines, setCustomLines] = usePersistedState<CustomLine[]>('designer-custom-lines', [])
-  const [customSearch, setCustomSearch] = useState('')
+  /**
+   * Ручная правка карточки сегмента — «Изменить» на карточке копирует её текущий
+   * авторасчёт сюда (по ключу «бренд:сегмент»), дальше пользователь редактирует
+   * список сам, а «Сбросить» удаляет запись и карточка снова показывает авторасчёт.
+   */
+  const [tierOverrides, setTierOverrides] = usePersistedState<Record<string, OverrideLine[]>>('designer-tier-overrides', {})
+  const [editingKey, setEditingKey] = useState<string | null>(null)
+  const [editSearch, setEditSearch] = useState('')
 
   const brandsToShow: BrandFilter[] = selectedBrands.length > 0 ? selectedBrands : ['all']
   const resultsByBrand = brandsToShow.map((brand) => ({
@@ -112,64 +117,97 @@ export function DesignerView({ catalog, onSentToRack, onSentToPlan }: Props) {
     })
   }
 
-  function sendTierToRack(tierResult: TierResult) {
-    addProductsToRack(tierResult.lines.map((line) => ({ product: line.product, qty: line.qty })))
+  function overrideKeyFor(brand: BrandFilter, tier: Tier) {
+    return `${brand}:${tier}`
+  }
+
+  /** Строки карточки как они сейчас показаны — из ручной правки, если она есть, иначе авторасчёт. */
+  function effectiveLines(tierResult: TierResult, key: string): { product: Product; qty: number }[] {
+    const override = tierOverrides[key]
+    if (!override) {
+      return tierResult.lines
+        .filter((l): l is typeof l & { product: Product } => !!l.product)
+        .map((l) => ({ product: l.product, qty: l.qty }))
+    }
+    return override
+      .map((l) => ({ product: catalog.find((p) => p.id === l.productId), qty: l.qty }))
+      .filter((l): l is { product: Product; qty: number } => !!l.product)
+  }
+
+  function sendTierToRack(tierResult: TierResult, key: string) {
+    addProductsToRack(effectiveLines(tierResult, key))
     onSentToRack?.()
   }
 
-  function sendToBuildingPlan(tierResult: TierResult) {
-    const byRole = (role: string) => tierResult.lines.find((l) => l.role === role)?.product?.id
-    sendDesignToBuildingPlan(input.buildingType, input.wallMaterial, input.floors, {
-      apProductId: byRole('Точки доступа Wi-Fi'),
-      switchProductId: byRole('PoE-коммутатор'),
-      routerProductId: byRole('Роутер / шлюз'),
-      controllerProductId: byRole('Контроллер сети (Omada)'),
-    })
+  function sendToBuildingPlan(tierResult: TierResult, key: string) {
+    const override = tierOverrides[key]
+    if (override) {
+      const lines = effectiveLines(tierResult, key)
+      const byCategory = (cat: Product['category']) => lines.find((l) => l.product.category === cat)?.product.id
+      sendDesignToBuildingPlan(input.buildingType, input.wallMaterial, input.floors, {
+        apProductId: byCategory('ap'),
+        switchProductId: byCategory('switch'),
+        routerProductId: byCategory('router'),
+      })
+    } else {
+      const byRole = (role: string) => tierResult.lines.find((l) => l.role === role)?.product?.id
+      sendDesignToBuildingPlan(input.buildingType, input.wallMaterial, input.floors, {
+        apProductId: byRole('Точки доступа Wi-Fi'),
+        switchProductId: byRole('PoE-коммутатор'),
+        routerProductId: byRole('Роутер / шлюз'),
+        controllerProductId: byRole('Контроллер сети (Omada)'),
+      })
+    }
     onSentToPlan?.()
   }
 
-  const customResolved = customLines
-    .map((l) => ({ ...l, product: catalog.find((p) => p.id === l.productId) }))
-    .filter((l): l is CustomLine & { product: Product } => !!l.product)
-  const customTotalUSD = customResolved.reduce((sum, l) => sum + l.product.priceUSD * l.qty, 0)
-  const customBrands = Array.from(new Set(customResolved.map((l) => l.product.brand)))
-
-  const customSearchResults = useMemo(() => {
-    const q = customSearch.trim().toLowerCase()
-    if (!q) return []
-    return catalog.filter((p) => `${p.brand} ${p.model}`.toLowerCase().includes(q)).slice(0, 8)
-  }, [customSearch, catalog])
-
-  function addCustomProduct(product: Product) {
-    setCustomLines((prev) => {
-      const existing = prev.find((l) => l.productId === product.id)
-      if (existing) return prev.map((l) => (l.id === existing.id ? { ...l, qty: l.qty + 1 } : l))
-      return [...prev, { id: genId('custom'), productId: product.id, qty: 1 }]
+  function startEditing(key: string, tierResult: TierResult) {
+    setTierOverrides((prev) => {
+      if (prev[key]) return prev
+      const seeded = tierResult.lines
+        .filter((l): l is typeof l & { product: Product } => !!l.product)
+        .map((l) => ({ id: genId('custom'), productId: l.product.id, qty: l.qty }))
+      return { ...prev, [key]: seeded }
     })
-    setCustomSearch('')
+    setEditingKey(key)
+    setEditSearch('')
   }
 
-  function setCustomQty(id: string, qty: number) {
-    setCustomLines((prev) => prev.map((l) => (l.id === id ? { ...l, qty: Math.max(1, qty) } : l)))
+  function stopEditing() {
+    setEditingKey(null)
+    setEditSearch('')
   }
 
-  function removeCustomLine(id: string) {
-    setCustomLines((prev) => prev.filter((l) => l.id !== id))
-  }
-
-  function sendCustomToRack() {
-    addProductsToRack(customResolved.map((l) => ({ product: l.product, qty: l.qty })))
-    onSentToRack?.()
-  }
-
-  function sendCustomToBuildingPlan() {
-    const byCategory = (cat: Product['category']) => customResolved.find((l) => l.product.category === cat)?.product.id
-    sendDesignToBuildingPlan(input.buildingType, input.wallMaterial, input.floors, {
-      apProductId: byCategory('ap'),
-      switchProductId: byCategory('switch'),
-      routerProductId: byCategory('router'),
+  function resetOverride(key: string) {
+    setTierOverrides((prev) => {
+      const next = { ...prev }
+      delete next[key]
+      return next
     })
-    onSentToPlan?.()
+    if (editingKey === key) stopEditing()
+  }
+
+  function addOverrideProduct(key: string, product: Product) {
+    setTierOverrides((prev) => {
+      const lines = prev[key] ?? []
+      const existing = lines.find((l) => l.productId === product.id)
+      const nextLines = existing
+        ? lines.map((l) => (l.id === existing.id ? { ...l, qty: l.qty + 1 } : l))
+        : [...lines, { id: genId('custom'), productId: product.id, qty: 1 }]
+      return { ...prev, [key]: nextLines }
+    })
+    setEditSearch('')
+  }
+
+  function setOverrideQty(key: string, lineId: string, qty: number) {
+    setTierOverrides((prev) => ({
+      ...prev,
+      [key]: (prev[key] ?? []).map((l) => (l.id === lineId ? { ...l, qty: Math.max(1, qty) } : l)),
+    }))
+  }
+
+  function removeOverrideLine(key: string, lineId: string) {
+    setTierOverrides((prev) => ({ ...prev, [key]: (prev[key] ?? []).filter((l) => l.id !== lineId) }))
   }
 
   return (
@@ -528,11 +566,28 @@ export function DesignerView({ catalog, onSentToRack, onSentToPlan }: Props) {
                 {r.recommendationReason}
               </div>
 
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 {TIER_ORDER.map((tier) => {
                   const t = r.tiers.find((rr) => rr.tier === tier)!
                   const accent = TIER_ACCENT[tier]
                   const isRecommended = tier === r.recommendedTier
+                  const key = overrideKeyFor(brand, tier)
+                  const override = tierOverrides[key]
+                  const isEditing = editingKey === key
+                  const resolvedOverride = (override ?? [])
+                    .map((l) => ({ ...l, product: catalog.find((p) => p.id === l.productId) }))
+                    .filter((l): l is OverrideLine & { product: Product } => !!l.product)
+                  const displayTotalUSD = override
+                    ? resolvedOverride.reduce((sum, l) => sum + l.product.priceUSD * l.qty, 0)
+                    : t.totalUSD
+                  const displayBrands = override ? Array.from(new Set(resolvedOverride.map((l) => l.product.brand))) : t.brands
+                  const overBudgetUSD = input.maxBudgetUSD > 0 ? Math.max(0, displayTotalUSD - input.maxBudgetUSD) : 0
+                  const fitsBudget = overBudgetUSD === 0
+                  const editResults =
+                    isEditing && editSearch.trim()
+                      ? catalog.filter((p) => `${p.brand} ${p.model}`.toLowerCase().includes(editSearch.trim().toLowerCase())).slice(0, 8)
+                      : []
+                  const sendDisabled = override ? resolvedOverride.length === 0 : t.lines.every((l) => !l.product)
                   return (
                     <div
                       key={tier}
@@ -548,50 +603,146 @@ export function DesignerView({ catalog, onSentToRack, onSentToPlan }: Props) {
                           </span>
                         )}
                       </div>
-                      <p className="mb-2 text-xs text-slate-400">{t.brands.join(', ') || '—'}</p>
 
-                      <div className="mb-1 text-2xl font-bold text-slate-900">${t.totalUSD.toLocaleString()}</div>
+                      <div className="no-print mb-2 flex items-center gap-2 text-xs">
+                        {isEditing ? (
+                          <>
+                            <button
+                              onClick={stopEditing}
+                              className="rounded border border-slate-300 px-2 py-1 font-medium text-slate-700 hover:bg-slate-100"
+                            >
+                              Готово
+                            </button>
+                            <button onClick={() => resetOverride(key)} className="text-slate-400 hover:text-red-600">
+                              Сбросить к рекомендации
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => startEditing(key, t)}
+                              className="rounded border border-slate-300 px-2 py-1 font-medium text-slate-700 hover:bg-slate-100"
+                            >
+                              ✎ Изменить
+                            </button>
+                            {override && <span className="text-slate-400">изменено вручную</span>}
+                          </>
+                        )}
+                      </div>
+
+                      <p className="mb-2 text-xs text-slate-400">{displayBrands.join(', ') || '—'}</p>
+
+                      <div className="mb-1 text-2xl font-bold text-slate-900">${displayTotalUSD.toLocaleString()}</div>
                       <p className="mb-2 text-xs text-slate-400">
-                        ≈${t.usdPerClient.toFixed(1)} на одного одновременного клиента
+                        ≈${(r.concurrentDevices > 0 ? displayTotalUSD / r.concurrentDevices : displayTotalUSD).toFixed(1)} на одного
+                        одновременного клиента
                       </p>
                       {input.maxBudgetUSD > 0 && (
-                        <p className={`mb-2 text-xs font-medium ${t.fitsBudget ? 'text-emerald-600' : 'text-red-600'}`}>
-                          {t.fitsBudget ? '✓ В бюджете' : `Превышает бюджет на $${t.overBudgetUSD.toLocaleString()}`}
+                        <p className={`mb-2 text-xs font-medium ${fitsBudget ? 'text-emerald-600' : 'text-red-600'}`}>
+                          {fitsBudget ? '✓ В бюджете' : `Превышает бюджет на $${overBudgetUSD.toLocaleString()}`}
                         </p>
                       )}
 
                       <ul className="mb-3 flex-1 space-y-2 text-sm">
-                        {t.lines.map((line, i) => (
-                          <li
-                            key={i}
-                            className="flex items-center gap-2 border-t border-slate-100 pt-2 first:border-0 first:pt-0"
-                            title={line.reason}
-                          >
-                            {line.product && (
-                              <ProductImage
-                                imageUrl={line.product.imageUrl}
-                                brand={line.product.brand}
-                                category={line.product.category}
-                                size="sm"
-                              />
-                            )}
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-baseline gap-1">
-                                <span
-                                  className="truncate font-medium text-slate-900"
-                                  title={line.product ? `${line.product.brand} ${line.product.model}` : line.role}
-                                >
-                                  {line.product ? `${line.product.brand} ${line.product.model}` : line.role}
-                                </span>
-                                {line.qty > 1 && <span className="shrink-0 font-medium text-slate-900">× {line.qty}</span>}
-                              </div>
-                              <div className="text-xs text-slate-400">{line.role}</div>
-                            </div>
-                          </li>
-                        ))}
+                        {override
+                          ? resolvedOverride.map((l) => (
+                              <li key={l.id} className="flex items-start gap-2 border-t border-slate-100 pt-2 first:border-0 first:pt-0">
+                                <ProductImage imageUrl={l.product.imageUrl} brand={l.product.brand} category={l.product.category} size="sm" />
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-baseline gap-1">
+                                    <span
+                                      className="truncate font-medium text-slate-900"
+                                      title={`${l.product.brand} ${l.product.model}`}
+                                    >
+                                      {l.product.brand} {l.product.model}
+                                    </span>
+                                    {!isEditing && l.qty > 1 && <span className="shrink-0 font-medium text-slate-900">× {l.qty}</span>}
+                                  </div>
+                                  <div className="text-xs text-slate-400">{CATEGORY_LABELS[l.product.category]}</div>
+                                  {isEditing && (
+                                    <div className="mt-1 flex items-center gap-1">
+                                      <button
+                                        onClick={() => setOverrideQty(key, l.id, l.qty - 1)}
+                                        className="h-5 w-5 rounded border border-slate-300 text-xs leading-none text-slate-600 hover:bg-slate-100"
+                                      >
+                                        −
+                                      </button>
+                                      <span className="w-5 text-center text-xs font-medium">{l.qty}</span>
+                                      <button
+                                        onClick={() => setOverrideQty(key, l.id, l.qty + 1)}
+                                        className="h-5 w-5 rounded border border-slate-300 text-xs leading-none text-slate-600 hover:bg-slate-100"
+                                      >
+                                        +
+                                      </button>
+                                      <button
+                                        onClick={() => removeOverrideLine(key, l.id)}
+                                        className="ml-2 text-xs text-red-500 hover:text-red-700"
+                                      >
+                                        Убрать
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              </li>
+                            ))
+                          : t.lines.map((line, i) => (
+                              <li
+                                key={i}
+                                className="flex items-center gap-2 border-t border-slate-100 pt-2 first:border-0 first:pt-0"
+                                title={line.reason}
+                              >
+                                {line.product && (
+                                  <ProductImage
+                                    imageUrl={line.product.imageUrl}
+                                    brand={line.product.brand}
+                                    category={line.product.category}
+                                    size="sm"
+                                  />
+                                )}
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-baseline gap-1">
+                                    <span
+                                      className="truncate font-medium text-slate-900"
+                                      title={line.product ? `${line.product.brand} ${line.product.model}` : line.role}
+                                    >
+                                      {line.product ? `${line.product.brand} ${line.product.model}` : line.role}
+                                    </span>
+                                    {line.qty > 1 && <span className="shrink-0 font-medium text-slate-900">× {line.qty}</span>}
+                                  </div>
+                                  <div className="text-xs text-slate-400">{line.role}</div>
+                                </div>
+                              </li>
+                            ))}
                       </ul>
 
-                      {t.warnings.length > 0 && (
+                      {isEditing && (
+                        <div className="no-print relative mb-3">
+                          <input
+                            value={editSearch}
+                            onChange={(e) => setEditSearch(e.target.value)}
+                            placeholder="+ добавить товар (бренд, модель)"
+                            className="w-full rounded border border-slate-300 px-2 py-1 text-xs"
+                          />
+                          {editResults.length > 0 && (
+                            <div className="absolute inset-x-0 top-full z-10 mt-1 max-h-48 overflow-y-auto rounded border border-slate-200 bg-white shadow-lg">
+                              {editResults.map((p) => (
+                                <button
+                                  key={p.id}
+                                  onClick={() => addOverrideProduct(key, p)}
+                                  className="flex w-full items-center justify-between px-2 py-1.5 text-left text-xs hover:bg-slate-50"
+                                >
+                                  <span className="truncate">
+                                    {p.brand} {p.model}
+                                  </span>
+                                  <span className="shrink-0 text-slate-400">${p.priceUSD}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {!override && t.warnings.length > 0 && (
                         <div className="mb-2 space-y-1 rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
                           {t.warnings.map((w, i) => (
                             <div key={i}>⚠ {w}</div>
@@ -601,14 +752,16 @@ export function DesignerView({ catalog, onSentToRack, onSentToPlan }: Props) {
 
                       <div className="mt-1 flex flex-col gap-1.5">
                         <button
-                          onClick={() => sendTierToRack(t)}
-                          className="no-print rounded border border-slate-300 px-2 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                          onClick={() => sendTierToRack(t, key)}
+                          disabled={sendDisabled}
+                          className="no-print rounded border border-slate-300 px-2 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent"
                         >
                           Добавить в шкаф на плане здания →
                         </button>
                         <button
-                          onClick={() => sendToBuildingPlan(t)}
-                          className="no-print rounded border border-slate-300 px-2 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                          onClick={() => sendToBuildingPlan(t, key)}
+                          disabled={sendDisabled}
+                          className="no-print rounded border border-slate-300 px-2 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent"
                         >
                           Показать на плане здания →
                         </button>
@@ -616,94 +769,6 @@ export function DesignerView({ catalog, onSentToRack, onSentToPlan }: Props) {
                     </div>
                   )
                 })}
-
-                <div className="flex flex-col rounded-lg border-2 border-dashed border-slate-300 bg-white p-4 print:break-inside-avoid">
-                  <div className="mb-1 flex items-center justify-between">
-                    <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">Свой набор</span>
-                  </div>
-                  <p className="mb-2 text-xs text-slate-400">{customBrands.join(', ') || 'Выберите товары сами'}</p>
-
-                  <div className="mb-1 text-2xl font-bold text-slate-900">${customTotalUSD.toLocaleString()}</div>
-                  <p className="mb-2 text-xs text-slate-400">{customResolved.length} позиций в списке</p>
-
-                  <ul className="mb-2 flex-1 space-y-2 text-sm">
-                    {customResolved.map((l) => (
-                      <li key={l.id} className="flex items-start gap-2 border-t border-slate-100 pt-2 first:border-0 first:pt-0">
-                        <ProductImage imageUrl={l.product.imageUrl} brand={l.product.brand} category={l.product.category} size="sm" />
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate font-medium text-slate-900" title={`${l.product.brand} ${l.product.model}`}>
-                            {l.product.brand} {l.product.model}
-                          </div>
-                          <div className="text-xs text-slate-400">{CATEGORY_LABELS[l.product.category]}</div>
-                          <div className="no-print mt-1 flex items-center gap-1">
-                            <button
-                              onClick={() => setCustomQty(l.id, l.qty - 1)}
-                              className="h-5 w-5 rounded border border-slate-300 text-xs leading-none text-slate-600 hover:bg-slate-100"
-                            >
-                              −
-                            </button>
-                            <span className="w-5 text-center text-xs font-medium">{l.qty}</span>
-                            <button
-                              onClick={() => setCustomQty(l.id, l.qty + 1)}
-                              className="h-5 w-5 rounded border border-slate-300 text-xs leading-none text-slate-600 hover:bg-slate-100"
-                            >
-                              +
-                            </button>
-                            <button
-                              onClick={() => removeCustomLine(l.id)}
-                              className="ml-2 text-xs text-red-500 hover:text-red-700"
-                              title="Убрать"
-                            >
-                              Убрать
-                            </button>
-                          </div>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-
-                  <div className="no-print relative mb-3">
-                    <input
-                      value={customSearch}
-                      onChange={(e) => setCustomSearch(e.target.value)}
-                      placeholder="+ добавить товар (бренд, модель)"
-                      className="w-full rounded border border-slate-300 px-2 py-1 text-xs"
-                    />
-                    {customSearchResults.length > 0 && (
-                      <div className="absolute inset-x-0 top-full z-10 mt-1 max-h-48 overflow-y-auto rounded border border-slate-200 bg-white shadow-lg">
-                        {customSearchResults.map((p) => (
-                          <button
-                            key={p.id}
-                            onClick={() => addCustomProduct(p)}
-                            className="flex w-full items-center justify-between px-2 py-1.5 text-left text-xs hover:bg-slate-50"
-                          >
-                            <span className="truncate">
-                              {p.brand} {p.model}
-                            </span>
-                            <span className="shrink-0 text-slate-400">${p.priceUSD}</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="mt-1 flex flex-col gap-1.5">
-                    <button
-                      onClick={sendCustomToRack}
-                      disabled={customResolved.length === 0}
-                      className="no-print rounded border border-slate-300 px-2 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent"
-                    >
-                      Добавить в шкаф на плане здания →
-                    </button>
-                    <button
-                      onClick={sendCustomToBuildingPlan}
-                      disabled={customResolved.length === 0}
-                      className="no-print rounded border border-slate-300 px-2 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent"
-                    >
-                      Показать на плане здания →
-                    </button>
-                  </div>
-                </div>
               </div>
             </div>
           ))}
