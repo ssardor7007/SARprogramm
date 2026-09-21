@@ -459,7 +459,7 @@ export function BuildingPlanView({ catalog }: Props) {
           <p className="no-print mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400">
             <span>
               Метка <b>🖧</b> — коммутатор/серверная этого этажа, перетащите её. Синие точки — точки доступа Wi-Fi: их можно
-              свободно перетаскивать мышью, двойной клик удаляет точку.
+              свободно перетаскивать мышью, двойной клик удаляет точку. Одна клетка сетки = 1 м.
             </span>
             <span className="flex items-center gap-2 whitespace-nowrap">
               <span>Слабый</span>
