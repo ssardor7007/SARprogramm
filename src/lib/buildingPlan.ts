@@ -144,7 +144,12 @@ export function computeHeatmapGrid(floor: Floor, aps: APPlacement[]): HeatCell[]
         const dist = euclid(ap.pos, { x, y })
         const reach = ap.radius * 1.4
         if (dist > reach) continue
-        const distanceFalloff = 1 - dist / reach
+        // Внутри радиуса «уверенного приёма» сигнал должен читаться зелёным почти
+        // целиком (лёгкое угасание к краю), а не таять линейно от самой точки —
+        // иначе даже центр зоны покрытия рисовался жёлто-оранжевым. Настоящий спад
+        // до нуля идёт только на «хвосте» между радиусом и предельной дальностью.
+        const distanceFalloff =
+          dist <= ap.radius ? 1 - (dist / ap.radius) * 0.2 : 0.8 * (1 - (dist - ap.radius) / (reach - ap.radius))
         if (distanceFalloff <= best) continue
         const strength = distanceFalloff * wallAttenuation(ap.pos, { x, y }, floor.rooms)
         if (strength > best) best = strength
