@@ -649,11 +649,8 @@ export function DesignerView({ catalog, onSentToRack, onSentToPlan }: Props) {
                               <li key={l.id} className="flex items-start gap-2 border-t border-slate-100 pt-2 first:border-0 first:pt-0">
                                 <ProductImage imageUrl={l.product.imageUrl} brand={l.product.brand} category={l.product.category} size="sm" />
                                 <div className="min-w-0 flex-1">
-                                  <div className="flex items-baseline gap-1">
-                                    <span
-                                      className="truncate font-medium text-slate-900"
-                                      title={`${l.product.brand} ${l.product.model}`}
-                                    >
+                                  <div className="flex items-start justify-between gap-1">
+                                    <span className="font-medium text-slate-900" title={`${l.product.brand} ${l.product.model}`}>
                                       {l.product.brand} {l.product.model}
                                     </span>
                                     {!isEditing && l.qty > 1 && <span className="shrink-0 font-medium text-slate-900">× {l.qty}</span>}
@@ -700,9 +697,9 @@ export function DesignerView({ catalog, onSentToRack, onSentToPlan }: Props) {
                                   />
                                 )}
                                 <div className="min-w-0 flex-1">
-                                  <div className="flex items-baseline gap-1">
+                                  <div className="flex items-start justify-between gap-1">
                                     <span
-                                      className="truncate font-medium text-slate-900"
+                                      className="font-medium text-slate-900"
                                       title={line.product ? `${line.product.brand} ${line.product.model}` : line.role}
                                     >
                                       {line.product ? `${line.product.brand} ${line.product.model}` : line.role}
