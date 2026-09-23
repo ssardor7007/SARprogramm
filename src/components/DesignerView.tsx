@@ -21,6 +21,7 @@ import { sendDesignToBuildingPlan } from '../lib/buildingPlanBridge'
 import { SHOW_VIDEO_SURVEILLANCE } from '../lib/features'
 import { addProductsToRack } from '../lib/rackCart'
 import { genId, usePersistedState } from '../lib/storage'
+import { AlertIcon, CheckIcon, PencilIcon } from './NavIcons'
 import { ProductImage } from './ProductImage'
 
 interface Props {
@@ -609,8 +610,9 @@ export function DesignerView({ catalog, onSentToRack, onSentToPlan }: Props) {
                           <>
                             <button
                               onClick={stopEditing}
-                              className="rounded border border-slate-300 px-2 py-1 font-medium text-slate-700 hover:bg-slate-100"
+                              className="flex items-center gap-1.5 rounded border border-slate-300 px-2.5 py-1.5 font-medium text-slate-700 hover:bg-slate-100"
                             >
+                              <CheckIcon className="h-3.5 w-3.5" />
                               Готово
                             </button>
                             <button onClick={() => resetOverride(key)} className="text-slate-400 hover:text-red-600">
@@ -621,9 +623,10 @@ export function DesignerView({ catalog, onSentToRack, onSentToPlan }: Props) {
                           <>
                             <button
                               onClick={() => startEditing(key, t)}
-                              className="rounded border border-slate-300 px-2 py-1 font-medium text-slate-700 hover:bg-slate-100"
+                              className="flex items-center gap-1.5 rounded border border-slate-300 px-2.5 py-1.5 font-medium text-slate-700 hover:bg-slate-100"
                             >
-                              ✎ Изменить
+                              <PencilIcon />
+                              Изменить
                             </button>
                             {override && <span className="text-slate-400">изменено вручную</span>}
                           </>
@@ -638,8 +641,11 @@ export function DesignerView({ catalog, onSentToRack, onSentToPlan }: Props) {
                         одновременного клиента
                       </p>
                       {input.maxBudgetUSD > 0 && (
-                        <p className={`mb-2 text-xs font-medium ${fitsBudget ? 'text-emerald-600' : 'text-red-600'}`}>
-                          {fitsBudget ? '✓ В бюджете' : `Превышает бюджет на $${overBudgetUSD.toLocaleString()}`}
+                        <p
+                          className={`mb-2 flex items-center gap-1 text-xs font-medium ${fitsBudget ? 'text-emerald-600' : 'text-red-600'}`}
+                        >
+                          {fitsBudget ? <CheckIcon className="h-3.5 w-3.5" /> : <AlertIcon className="h-3.5 w-3.5" />}
+                          {fitsBudget ? 'В бюджете' : `Превышает бюджет на $${overBudgetUSD.toLocaleString()}`}
                         </p>
                       )}
 
@@ -657,23 +663,28 @@ export function DesignerView({ catalog, onSentToRack, onSentToPlan }: Props) {
                                   </div>
                                   <div className="text-xs text-slate-400">{CATEGORY_LABELS[l.product.category]}</div>
                                   {isEditing && (
-                                    <div className="mt-1 flex items-center gap-1">
+                                    <div className="mt-1.5 flex items-center gap-1">
                                       <button
                                         onClick={() => setOverrideQty(key, l.id, l.qty - 1)}
-                                        className="h-5 w-5 rounded border border-slate-300 text-xs leading-none text-slate-600 hover:bg-slate-100"
+                                        disabled={l.qty <= 1}
+                                        aria-label={`Уменьшить количество ${l.product.model}`}
+                                        className="h-8 w-8 rounded border border-slate-300 text-sm leading-none text-slate-600 hover:bg-slate-100 disabled:opacity-40"
                                       >
                                         −
                                       </button>
-                                      <span className="w-5 text-center text-xs font-medium">{l.qty}</span>
+                                      <span className="w-7 text-center text-sm font-medium tabular-nums" aria-live="polite">
+                                        {l.qty}
+                                      </span>
                                       <button
                                         onClick={() => setOverrideQty(key, l.id, l.qty + 1)}
-                                        className="h-5 w-5 rounded border border-slate-300 text-xs leading-none text-slate-600 hover:bg-slate-100"
+                                        aria-label={`Увеличить количество ${l.product.model}`}
+                                        className="h-8 w-8 rounded border border-slate-300 text-sm leading-none text-slate-600 hover:bg-slate-100"
                                       >
                                         +
                                       </button>
                                       <button
                                         onClick={() => removeOverrideLine(key, l.id)}
-                                        className="ml-2 text-xs text-red-500 hover:text-red-700"
+                                        className="ml-1 rounded px-2 py-1.5 text-xs text-red-600 hover:bg-red-50 hover:text-red-700"
                                       >
                                         Убрать
                                       </button>
@@ -718,7 +729,8 @@ export function DesignerView({ catalog, onSentToRack, onSentToPlan }: Props) {
                             value={editSearch}
                             onChange={(e) => setEditSearch(e.target.value)}
                             placeholder="+ добавить товар (бренд, модель)"
-                            className="w-full rounded border border-slate-300 px-2 py-1 text-xs"
+                            aria-label="Найти и добавить товар"
+                            className="w-full rounded border border-slate-300 px-2.5 py-2 text-xs"
                           />
                           {editResults.length > 0 && (
                             <div className="absolute inset-x-0 top-full z-10 mt-1 max-h-48 overflow-y-auto rounded border border-slate-200 bg-white shadow-lg">
@@ -726,7 +738,7 @@ export function DesignerView({ catalog, onSentToRack, onSentToPlan }: Props) {
                                 <button
                                   key={p.id}
                                   onClick={() => addOverrideProduct(key, p)}
-                                  className="flex w-full items-center justify-between px-2 py-1.5 text-left text-xs hover:bg-slate-50"
+                                  className="flex w-full items-center justify-between gap-2 px-2.5 py-2 text-left text-xs hover:bg-slate-50"
                                 >
                                   <span className="truncate">
                                     {p.brand} {p.model}
@@ -740,9 +752,12 @@ export function DesignerView({ catalog, onSentToRack, onSentToPlan }: Props) {
                       )}
 
                       {!override && t.warnings.length > 0 && (
-                        <div className="mb-2 space-y-1 rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+                        <div className="mb-2 space-y-1.5 rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
                           {t.warnings.map((w, i) => (
-                            <div key={i}>⚠ {w}</div>
+                            <div key={i} className="flex gap-1.5">
+                              <AlertIcon className="mt-px h-3.5 w-3.5 shrink-0" />
+                              <span>{w}</span>
+                            </div>
                           ))}
                         </div>
                       )}

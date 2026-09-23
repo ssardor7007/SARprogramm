@@ -17,6 +17,7 @@ import {
 } from '../lib/buildingPlan'
 import { BUILDING_TYPE_LABELS, wallMaterialLabel, type BuildingType, type WallMaterial } from '../lib/designer'
 import { genId, usePersistedState } from '../lib/storage'
+import { AlertIcon, RackIcon } from './NavIcons'
 import { RackWorkspace } from './RackWorkspace'
 
 interface Props {
@@ -410,7 +411,11 @@ export function BuildingPlanView({ catalog }: Props) {
                 : { borderColor: '#e2e8f0', color: '#475569' }
             }
           >
-            {f.id === plan.serverFloorId && <span title="Серверная / шкаф">🖧</span>}
+            {f.id === plan.serverFloorId && (
+              <span title="Серверная / шкаф" className="h-4 w-4">
+                <RackIcon />
+              </span>
+            )}
             {f.name}
           </button>
         ))}
@@ -442,10 +447,11 @@ export function BuildingPlanView({ catalog }: Props) {
         <button
           onClick={() => setPlan((prev) => ({ ...prev, serverFloorId: activeFloor.id }))}
           disabled={isServerFloor}
-          className="rounded border px-3 py-1.5 text-sm font-medium disabled:cursor-default disabled:opacity-60"
+          className="flex items-center gap-1.5 rounded border px-3 py-1.5 text-sm font-medium disabled:cursor-default disabled:opacity-60"
           style={isServerFloor ? { borderColor: '#2563eb', color: '#2563eb' } : { borderColor: '#cbd5e1', color: '#475569' }}
         >
-          {isServerFloor ? '🖧 Это серверная' : 'Сделать серверной'}
+          {isServerFloor && <RackIcon className="h-4 w-4" />}
+          {isServerFloor ? 'Это серверная' : 'Сделать серверной'}
         </button>
         {plan.floors.length > 1 && (
           <button onClick={() => removeFloor(activeFloor.id)} className="ml-auto rounded border border-red-200 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50">
@@ -458,7 +464,7 @@ export function BuildingPlanView({ catalog }: Props) {
         <div>
           <p className="no-print mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400">
             <span>
-              Метка <b>🖧</b> — коммутатор/серверная этого этажа, перетащите её. Синие точки — точки доступа Wi-Fi: их можно
+              Тёмная метка <RackIcon className="inline h-3.5 w-3.5 align-[-2px]" /> — коммутатор/серверная этого этажа, перетащите её. Синие точки — точки доступа Wi-Fi: их можно
               свободно перетаскивать мышью, двойной клик удаляет точку. Одна клетка сетки = 1 м.
             </span>
             <span className="flex items-center gap-2 whitespace-nowrap">
@@ -574,10 +580,10 @@ export function BuildingPlanView({ catalog }: Props) {
                 onPointerMove={onSwitchPointerMove}
                 onPointerUp={onAnyPointerUp}
                 title="Коммутатор/серверная этого этажа — перетащите"
-                className="absolute flex h-6 w-6 -translate-x-1/2 -translate-y-1/2 cursor-move items-center justify-center rounded bg-slate-900 text-xs text-white shadow"
+                className="absolute flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 cursor-move items-center justify-center rounded bg-slate-900 p-1 text-white shadow"
                 style={{ left: activeFloor.switchPoint.x * PX_PER_M, top: activeFloor.switchPoint.y * PX_PER_M, zIndex: 3 }}
               >
-                🖧
+                <RackIcon />
               </div>
             </div>
           </div>
@@ -681,7 +687,10 @@ export function BuildingPlanView({ catalog }: Props) {
             {result.warnings.length > 0 && (
               <div className="mt-3 space-y-1 rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
                 {result.warnings.map((w, i) => (
-                  <div key={i}>⚠ {w}</div>
+                  <div key={i} className="flex gap-1.5">
+                    <AlertIcon className="mt-px h-3.5 w-3.5 shrink-0" />
+                    <span>{w}</span>
+                  </div>
                 ))}
               </div>
             )}

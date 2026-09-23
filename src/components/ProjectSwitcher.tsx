@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { CheckIcon, ChevronDownIcon, FolderIcon } from './NavIcons'
 import {
   createProject,
   deleteProject,
@@ -52,11 +53,14 @@ export function ProjectSwitcher() {
     <div className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex max-w-[9rem] shrink-0 items-center gap-1.5 rounded-full border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--text-muted)] hover:bg-black/5 sm:max-w-[14rem]"
+        className="flex max-w-[10rem] shrink-0 items-center gap-1.5 rounded-full border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--text-muted)] hover:bg-black/5 sm:max-w-[15rem]"
         title="Переключить проект объекта"
+        aria-haspopup="menu"
+        aria-expanded={open}
       >
-        <span className="truncate">📁 {active?.name ?? 'Проект'}</span>
-        <span className="shrink-0 text-[10px]">▾</span>
+        <FolderIcon className="h-4 w-4 shrink-0" />
+        <span className="truncate">{active?.name ?? 'Проект'}</span>
+        <ChevronDownIcon className="h-3 w-3 shrink-0" />
       </button>
 
       {open && (
@@ -68,12 +72,13 @@ export function ProjectSwitcher() {
                 <button
                   key={p.id}
                   onClick={() => handleSwitch(p.id)}
-                  className={`block w-full truncate px-3 py-2 text-left text-sm ${
+                  className={`flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm ${
                     p.id === activeId ? 'bg-blue-50 font-medium text-blue-700' : 'text-slate-700 hover:bg-slate-50'
                   }`}
+                  aria-current={p.id === activeId ? 'true' : undefined}
                 >
-                  {p.id === activeId ? '✓ ' : ''}
-                  {p.name}
+                  <span className="h-4 w-4 shrink-0">{p.id === activeId && <CheckIcon />}</span>
+                  <span className="truncate">{p.name}</span>
                 </button>
               ))}
             </div>

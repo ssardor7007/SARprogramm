@@ -4,6 +4,7 @@ import type { Category, Product } from '../types'
 import type { RackLine } from '../lib/rackCart'
 import { isRackMountable } from '../lib/rackMount'
 import { genId, usePersistedState } from '../lib/storage'
+import { CloseIcon } from './NavIcons'
 import { ProductImage } from './ProductImage'
 import { RackElevation } from './RackElevation'
 
@@ -412,8 +413,12 @@ export function RackWorkspace({ catalog }: Props) {
           <div className="w-full max-w-sm rounded-xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-base font-semibold text-slate-900">Редактировать устройство</h3>
-              <button onClick={() => setEditingLineId(null)} className="text-slate-400 hover:text-slate-600">
-                ✕
+              <button
+                onClick={() => setEditingLineId(null)}
+                aria-label="Закрыть"
+                className="flex h-9 w-9 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              >
+                <CloseIcon className="h-5 w-5" />
               </button>
             </div>
 

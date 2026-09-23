@@ -55,14 +55,78 @@ export function PlanIcon() {
   )
 }
 
-export function RackIcon() {
+export function RackIcon({ className }: IconProps = {}) {
   return (
-    <svg viewBox="0 0 24 24" {...common}>
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true" {...common}>
       <rect x="4" y="3" width="16" height="18" rx="1" />
       <path d="M4 8h16M4 13h16M4 18h16" />
       <circle cx="7" cy="5.5" r="0.6" fill="currentColor" stroke="none" />
       <circle cx="7" cy="10.5" r="0.6" fill="currentColor" stroke="none" />
       <circle cx="7" cy="15.5" r="0.6" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+
+interface IconProps {
+  className?: string
+}
+
+export function FolderIcon({ className = 'h-4 w-4' }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true" {...common}>
+      <path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h4.2l2 2.2h8.8A1.5 1.5 0 0 1 21 8.7v9.8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5Z" />
+    </svg>
+  )
+}
+
+export function ChevronDownIcon({ className = 'h-3 w-3' }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true" {...common}>
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  )
+}
+
+export function CheckIcon({ className = 'h-4 w-4' }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true" {...common}>
+      <path d="m5 12.5 4.5 4.5L19 7.5" />
+    </svg>
+  )
+}
+
+export function PencilIcon({ className = 'h-3.5 w-3.5' }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true" {...common}>
+      <path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16Z" />
+      <path d="m13.5 6.5 4 4" />
+    </svg>
+  )
+}
+
+export function AlertIcon({ className = 'h-4 w-4' }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true" {...common}>
+      <path d="M10.3 4.2 2.6 17.5A2 2 0 0 0 4.3 20.5h15.4a2 2 0 0 0 1.7-3L13.7 4.2a2 2 0 0 0-3.4 0Z" />
+      <path d="M12 9.5v4.5M12 17.2v.1" />
+    </svg>
+  )
+}
+
+export function MoreVerticalIcon({ className = 'h-4 w-4' }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true" {...common}>
+      <circle cx="12" cy="5.5" r="1.3" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="18.5" r="1.3" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+
+export function CloseIcon({ className = 'h-4 w-4' }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true" {...common}>
+      <path d="M6 6l12 12M18 6 6 18" />
     </svg>
   )
 }

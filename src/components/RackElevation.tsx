@@ -3,6 +3,7 @@ import { brandColor } from '../lib/brandTheme'
 import type { RackLine } from '../lib/rackCart'
 import { isRackMountable } from '../lib/rackMount'
 import type { Product } from '../types'
+import { MoreVerticalIcon } from './NavIcons'
 import { ProductImage } from './ProductImage'
 
 const UNIT_PX = 56
@@ -89,10 +90,12 @@ export function RackElevation({ catalog, lines, rackHeight, onEditLine, onRemove
                     {(onEditLine || onRemoveLine) && (
                       <button
                         onClick={(e) => openMenu(e, line)}
-                        className="no-print shrink-0 rounded px-1.5 text-xs leading-none text-white/70 hover:bg-white/20 hover:text-white"
+                        className="no-print flex h-6 w-6 shrink-0 items-center justify-center rounded text-white/80 hover:bg-white/20 hover:text-white"
                         title="Действия с устройством"
+                        aria-label={`Действия: ${p.brand} ${p.model}`}
+                        aria-haspopup="menu"
                       >
-                        ⋮
+                        <MoreVerticalIcon />
                       </button>
                     )}
                   </div>
