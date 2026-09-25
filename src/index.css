@@ -16,7 +16,7 @@
 }
 
 /*
- * Ночная тема — включается кнопкой «день/ночь» (data-theme="dark" на <html>).
+ * Ночная тема — включается кнопкой «день/ночь» (data-sar-theme="dark" на <html>).
  * Только для экрана: печать и PDF всегда светлые.
  *
  * Компоненты написаны на обычных классах Tailwind (bg-white, text-slate-700,
@@ -26,7 +26,7 @@
  * текстом, цветные 50/100/200 — приглушёнными подложками.
  */
 @media screen {
-  :root[data-theme='dark'] {
+  :root[data-sar-theme='dark'] {
     color-scheme: dark;
 
     --bg: #10131f;
@@ -85,33 +85,33 @@
   }
 
   /* Классы, где один и тот же оттенок служит фоном, а не текстом. */
-  :root[data-theme='dark'] .bg-white {
+  :root[data-sar-theme='dark'] .bg-white {
     background-color: var(--surface);
   }
-  :root[data-theme='dark'] .hover\:bg-white:hover {
+  :root[data-sar-theme='dark'] .hover\:bg-white:hover {
     background-color: var(--surface-alt);
   }
-  :root[data-theme='dark'] .hover\:bg-black\/5:hover {
+  :root[data-sar-theme='dark'] .hover\:bg-black\/5:hover {
     background-color: rgb(255 255 255 / 0.06);
   }
-  :root[data-theme='dark'] .bg-blue-600 {
+  :root[data-sar-theme='dark'] .bg-blue-600 {
     background-color: #3f68e0;
   }
-  :root[data-theme='dark'] .hover\:bg-blue-700:hover {
+  :root[data-sar-theme='dark'] .hover\:bg-blue-700:hover {
     background-color: #3459c9;
   }
-  :root[data-theme='dark'] .bg-slate-900 {
+  :root[data-sar-theme='dark'] .bg-slate-900 {
     background-color: #3a4466;
   }
-  :root[data-theme='dark'] .hover\:bg-slate-700:hover {
+  :root[data-sar-theme='dark'] .hover\:bg-slate-700:hover {
     background-color: #4a5580;
   }
-  :root[data-theme='dark'] .bg-slate-900\/50 {
+  :root[data-sar-theme='dark'] .bg-slate-900\/50 {
     background-color: rgb(3 5 12 / 0.65);
   }
 
   /* Шкаф в дизайнере стойки — «физический» предмет, его металл не перекрашиваем. */
-  :root[data-theme='dark'] .theme-fixed {
+  :root[data-sar-theme='dark'] .theme-fixed {
     --color-slate-50: oklch(98.4% 0.003 247.858);
     --color-slate-100: oklch(96.8% 0.007 247.896);
     --color-slate-200: oklch(92.9% 0.013 255.508);

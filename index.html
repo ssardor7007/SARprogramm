@@ -7,7 +7,7 @@
     <script>
       // Тема до первой отрисовки, чтобы ночная тема не «моргала» светлой.
       try {
-        if (localStorage.getItem('sar-theme') === 'dark') document.documentElement.dataset.theme = 'dark'
+        if (localStorage.getItem('sar-theme') === 'dark') document.documentElement.dataset.sarTheme = 'dark'
       } catch (e) {}
     </script>
     <title>SAR — сравнение и подбор оборудования</title>

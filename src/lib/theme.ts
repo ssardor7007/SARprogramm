@@ -16,8 +16,10 @@ export function readTheme(fallback: Theme): Theme {
   }
 }
 
+/** Отдельный атрибут data-sar-theme, а не data-theme: на сайте data-theme на <html>
+ * уже занят дизайн-системой хоста и должен оставаться как есть. */
 function paint(theme: Theme) {
-  document.documentElement.dataset.theme = theme
+  document.documentElement.dataset.sarTheme = theme
 }
 
 export function setTheme(theme: Theme) {
