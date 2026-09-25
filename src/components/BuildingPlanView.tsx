@@ -465,7 +465,7 @@ export function BuildingPlanView({ catalog }: Props) {
         <div>
           <p className="no-print mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400">
             <span>
-              Тёмная метка <RackIcon className="inline h-3.5 w-3.5 align-[-2px]" /> — коммутатор/серверная этого этажа, перетащите её. Кружки с фото — точки доступа Wi-Fi (подобранная модель, подпись снизу): их можно
+              Тёмная метка <RackIcon className="inline h-3.5 w-3.5 align-[-2px]" /> — коммутатор/серверная этого этажа, перетащите её. Значки с фото — точки доступа Wi-Fi (подобранная модель, подпись снизу): их можно
               свободно перетаскивать мышью, двойной клик удаляет точку. Одна клетка сетки = 1 м.
             </span>
             <span className="flex items-center gap-2 whitespace-nowrap">
@@ -576,10 +576,7 @@ export function BuildingPlanView({ catalog }: Props) {
                     className="absolute -translate-x-1/2 -translate-y-1/2 cursor-move touch-none select-none"
                     style={{ left: ap.pos.x * PX_PER_M, top: ap.pos.y * PX_PER_M, zIndex: 4 }}
                   >
-                    <div
-                      className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border-2 border-blue-600 p-1 shadow-md"
-                      style={{ backgroundColor: '#ffffff' }}
-                    >
+                    <div className="flex h-10 w-10 items-center justify-center">
                       {product ? (
                         <ProductImage imageUrl={product.imageUrl} brand={product.brand} category={product.category} size="marker" />
                       ) : (

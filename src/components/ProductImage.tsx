@@ -17,8 +17,15 @@ function resolveSrc(url: string) {
   return base.endsWith('/') ? base + url.replace(/^\//, '') : `${base}/${url.replace(/^\//, '')}`
 }
 
+/** products/tpl/x.jpeg → products/cutout/x.png (вырезанный прибор без фона, только для локальных фото). */
+function cutoutUrl(url: string) {
+  const m = url.match(/^\/?products\/(?:[^/]+\/)*([^/]+)\.(?:png|jpe?g|webp)$/i)
+  return m ? `products/cutout/${m[1]}.png` : undefined
+}
+
 export function ProductImage({ imageUrl, brand, category, size = 'md' }: Props) {
   const [failed, setFailed] = useState(false)
+  const [cutoutFailed, setCutoutFailed] = useState(false)
   const color = brandColor(brand)
   const dim = size === 'xs' ? 'h-5 w-5' : size === 'sm' ? 'h-10 w-10' : size === 'lg' ? 'h-24 w-24' : 'h-16 w-16'
   const iconDim = size === 'xs' ? 'h-3 w-3' : size === 'sm' ? 'h-5 w-5' : size === 'lg' ? 'h-10 w-10' : 'h-8 w-8'
@@ -49,17 +56,20 @@ export function ProductImage({ imageUrl, brand, category, size = 'md' }: Props) 
     )
   }
 
-  // 'marker' — круглый значок точки доступа на плане здания: фото целиком (object-contain),
-  // размер задаёт родитель; без фото — иконка категории в цвете бренда.
+  // 'marker' — значок точки доступа на плане здания: сам прибор без белого фона.
+  // Для точек доступа лежат вырезанные PNG с прозрачностью в products/cutout/ (то же имя
+  // файла, расширение .png); если вырезки нет — показываем обычное фото, без фото — иконку.
   if (size === 'marker') {
     if (imageUrl && !failed) {
+      const cutout = cutoutUrl(imageUrl)
       return (
         <img
-          src={resolveSrc(imageUrl)}
+          src={resolveSrc(cutoutFailed || !cutout ? imageUrl : cutout)}
           alt={brand}
           draggable={false}
-          onError={() => setFailed(true)}
+          onError={() => (cutout && !cutoutFailed ? setCutoutFailed(true) : setFailed(true))}
           className="h-full w-full object-contain"
+          style={{ filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55)) drop-shadow(0 0 1px rgba(0, 0, 0, 0.45))' }}
         />
       )
     }
