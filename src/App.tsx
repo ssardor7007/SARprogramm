@@ -5,6 +5,7 @@ import { DesignerView } from './components/DesignerView'
 import { CatalogIcon, DesignerIcon, PlanIcon, QuoteIcon, ToolsIcon } from './components/NavIcons'
 import { ProjectSwitcher } from './components/ProjectSwitcher'
 import { QuoteView } from './components/QuoteView'
+import { ThemeToggle } from './components/ThemeToggle'
 import { CATALOG_VERSION, PRODUCTS } from './data/products'
 import { brandColor } from './lib/brandTheme'
 import { visibleBrands } from './lib/features'
@@ -94,6 +95,7 @@ function App() {
 
             <div className="flex shrink-0 items-center gap-2">
               {section === 'pro' && <ProjectSwitcher />}
+              <ThemeToggle />
               <button
                 onClick={() => setSection(section === 'client' ? 'pro' : 'client')}
                 className="flex shrink-0 items-center gap-1.5 rounded-full border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--text-muted)] hover:bg-black/5"

@@ -407,8 +407,8 @@ export function BuildingPlanView({ catalog }: Props) {
             className="flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium"
             style={
               f.id === activeFloor.id
-                ? { borderColor: '#2563eb', color: '#2563eb', backgroundColor: '#eff6ff' }
-                : { borderColor: '#e2e8f0', color: '#475569' }
+                ? { borderColor: 'var(--accent)', color: 'var(--accent)', backgroundColor: 'var(--color-blue-50, #eff6ff)' }
+                : { borderColor: 'var(--border)', color: 'var(--text-muted)' }
             }
           >
             {f.id === plan.serverFloorId && (
@@ -448,7 +448,7 @@ export function BuildingPlanView({ catalog }: Props) {
           onClick={() => setPlan((prev) => ({ ...prev, serverFloorId: activeFloor.id }))}
           disabled={isServerFloor}
           className="flex items-center gap-1.5 rounded border px-3 py-1.5 text-sm font-medium disabled:cursor-default disabled:opacity-60"
-          style={isServerFloor ? { borderColor: '#2563eb', color: '#2563eb' } : { borderColor: '#cbd5e1', color: '#475569' }}
+          style={isServerFloor ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : { borderColor: 'var(--border)', color: 'var(--text-muted)' }}
         >
           {isServerFloor && <RackIcon className="h-4 w-4" />}
           {isServerFloor ? 'Это серверная' : 'Сделать серверной'}
@@ -496,7 +496,7 @@ export function BuildingPlanView({ catalog }: Props) {
                 position: 'relative',
                 cursor: 'crosshair',
                 backgroundImage:
-                  'linear-gradient(to right, #f1f5f9 1px, transparent 1px), linear-gradient(to bottom, #f1f5f9 1px, transparent 1px)',
+                  'linear-gradient(to right, var(--color-slate-100, #f1f5f9) 1px, transparent 1px), linear-gradient(to bottom, var(--color-slate-100, #f1f5f9) 1px, transparent 1px)',
                 backgroundSize: `${PX_PER_M}px ${PX_PER_M}px`,
               }}
             >
@@ -513,7 +513,7 @@ export function BuildingPlanView({ catalog }: Props) {
                     width: room.w * PX_PER_M,
                     height: room.h * PX_PER_M,
                     backgroundColor: wallMaterialColor(room.wallMaterial),
-                    borderColor: room.id === selectedRoomId ? '#2563eb' : '#94a3b8',
+                    borderColor: room.id === selectedRoomId ? 'var(--accent)' : 'var(--color-slate-400, #94a3b8)',
                     zIndex: 1,
                   }}
                 >

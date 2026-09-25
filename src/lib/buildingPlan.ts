@@ -413,7 +413,13 @@ export function planBuilding(plan: BuildingPlan, catalog: Product[]): BuildingPl
 }
 
 export function wallMaterialColor(m: WallMaterial) {
-  return { open: '#e2e8f0', drywall: '#bfdbfe', brick: '#fde68a', concrete: '#cbd5e1' }[m]
+  // Через цветовые переменные Tailwind, чтобы заливка комнат следовала теме «день/ночь».
+  return {
+    open: 'var(--color-slate-200, #e2e8f0)',
+    drywall: 'var(--color-blue-200, #bfdbfe)',
+    brick: 'var(--color-amber-200, #fde68a)',
+    concrete: 'var(--color-slate-300, #cbd5e1)',
+  }[m]
 }
 
 export interface GenerateParams {

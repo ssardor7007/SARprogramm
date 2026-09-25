@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 :root {
+  color-scheme: light;
   --bg: #f3f5fb;
   --surface: #ffffff;
   --surface-alt: #eef1f8;
@@ -14,8 +15,20 @@
   --danger: #c2373d;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
+/*
+ * Ночная тема — включается кнопкой «день/ночь» (data-theme="dark" на <html>).
+ * Только для экрана: печать и PDF всегда светлые.
+ *
+ * Компоненты написаны на обычных классах Tailwind (bg-white, text-slate-700,
+ * border-slate-300…), а Tailwind v4 берёт их цвет из переменных --color-*.
+ * Поэтому вместо переписывания ~500 классов здесь подменяется сама палитра:
+ * светлые оттенки slate становятся тёмными поверхностями, тёмные — светлым
+ * текстом, цветные 50/100/200 — приглушёнными подложками.
+ */
+@media screen {
+  :root[data-theme='dark'] {
+    color-scheme: dark;
+
     --bg: #10131f;
     --surface: #171b2b;
     --surface-alt: #1e2336;
@@ -27,27 +40,95 @@
     --ok: #3ecf8e;
     --warn: #e0a83e;
     --danger: #ef6b73;
-  }
-}
 
-:root[data-theme='dark'] {
-  --bg: #10131f;
-  --surface: #171b2b;
-  --surface-alt: #1e2336;
-  --border: #2a3049;
-  --text: #eef0f7;
-  --text-muted: #9298b3;
-  --accent: #5b84f0;
-  --accent-ink: #0b0e18;
-  --ok: #3ecf8e;
-  --warn: #e0a83e;
-  --danger: #ef6b73;
+    --color-slate-50: #1c2133;
+    --color-slate-100: #22283d;
+    --color-slate-200: #2a3049;
+    --color-slate-300: #3a4262;
+    --color-slate-400: #7d84a3;
+    --color-slate-500: #979db8;
+    --color-slate-600: #b0b5cc;
+    --color-slate-700: #c9cde0;
+    --color-slate-800: #dde0ee;
+    --color-slate-900: #eef0f7;
+    --color-slate-950: #f7f8fc;
+
+    --color-blue-50: #1b2544;
+    --color-blue-100: #1f2d57;
+    --color-blue-200: #2a3d73;
+    --color-blue-300: #3d5596;
+    --color-blue-600: #6b8ff2;
+    --color-blue-700: #8aa8f6;
+    --color-blue-800: #a9c0f9;
+    --color-blue-900: #c6d5fb;
+
+    --color-red-50: #2f1a22;
+    --color-red-200: #5a2a35;
+    --color-red-600: #f07a82;
+    --color-red-700: #f59aa0;
+    --color-red-800: #f8b8bc;
+
+    --color-emerald-50: #11291f;
+    --color-emerald-200: #1f4d3a;
+    --color-emerald-600: #3ecf8e;
+    --color-emerald-700: #5fdca3;
+    --color-emerald-900: #b3f0d2;
+
+    --color-amber-50: #2d2412;
+    --color-amber-200: #5a4520;
+    --color-amber-700: #e8b456;
+    --color-amber-800: #f2cc84;
+
+    --color-violet-100: #2a2346;
+    --color-violet-200: #3b3163;
+    --color-violet-700: #b9a4f7;
+  }
+
+  /* Классы, где один и тот же оттенок служит фоном, а не текстом. */
+  :root[data-theme='dark'] .bg-white {
+    background-color: var(--surface);
+  }
+  :root[data-theme='dark'] .hover\:bg-white:hover {
+    background-color: var(--surface-alt);
+  }
+  :root[data-theme='dark'] .hover\:bg-black\/5:hover {
+    background-color: rgb(255 255 255 / 0.06);
+  }
+  :root[data-theme='dark'] .bg-blue-600 {
+    background-color: #3f68e0;
+  }
+  :root[data-theme='dark'] .hover\:bg-blue-700:hover {
+    background-color: #3459c9;
+  }
+  :root[data-theme='dark'] .bg-slate-900 {
+    background-color: #3a4466;
+  }
+  :root[data-theme='dark'] .hover\:bg-slate-700:hover {
+    background-color: #4a5580;
+  }
+  :root[data-theme='dark'] .bg-slate-900\/50 {
+    background-color: rgb(3 5 12 / 0.65);
+  }
+
+  /* Шкаф в дизайнере стойки — «физический» предмет, его металл не перекрашиваем. */
+  :root[data-theme='dark'] .theme-fixed {
+    --color-slate-50: oklch(98.4% 0.003 247.858);
+    --color-slate-100: oklch(96.8% 0.007 247.896);
+    --color-slate-200: oklch(92.9% 0.013 255.508);
+    --color-slate-300: oklch(86.9% 0.022 252.894);
+    --color-slate-400: oklch(70.4% 0.04 256.788);
+    --color-slate-500: oklch(55.4% 0.046 257.417);
+    --color-slate-600: oklch(44.6% 0.043 257.281);
+    --color-slate-700: oklch(37.2% 0.044 257.287);
+    --color-slate-800: oklch(27.9% 0.041 260.031);
+    --color-slate-900: oklch(20.8% 0.042 265.755);
+    --color-slate-950: oklch(12.9% 0.042 264.695);
+  }
 }
 
 body {
   background-color: var(--bg);
   color: var(--text);
-  color-scheme: light dark;
   font-family:
     'Manrope',
     system-ui,

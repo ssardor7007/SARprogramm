@@ -45,7 +45,7 @@ export function RackElevation({ catalog, lines, rackHeight, onEditLine, onRemove
 
   return (
     <div>
-      <div className="mx-auto w-full max-w-[320px] print:break-inside-avoid">
+      <div className="theme-fixed mx-auto w-full max-w-[320px] print:break-inside-avoid">
         {/* Верхняя крышка шкафа — вентиляционные прорези и шильд */}
         <div className="flex items-center justify-between rounded-t-lg border-2 border-b-0 border-slate-600 bg-gradient-to-b from-slate-300 to-slate-400 px-2.5 py-1">
           <div className="flex gap-[3px]">
