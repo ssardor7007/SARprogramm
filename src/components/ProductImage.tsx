@@ -7,7 +7,7 @@ interface Props {
   imageUrl?: string
   brand: string
   category: Category
-  size?: 'xs' | 'sm' | 'md' | 'lg' | 'fill'
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'fill' | 'marker'
 }
 
 /** Относительные пути (из public/) резолвятся с учётом base пути сборки — GitHub Pages/поддомен. */
@@ -45,6 +45,27 @@ export function ProductImage({ imageUrl, brand, category, size = 'md' }: Props) 
         <div className="h-1/2 w-1/2">
           <CategoryIcon category={category} />
         </div>
+      </div>
+    )
+  }
+
+  // 'marker' — круглый значок точки доступа на плане здания: фото целиком (object-contain),
+  // размер задаёт родитель; без фото — иконка категории в цвете бренда.
+  if (size === 'marker') {
+    if (imageUrl && !failed) {
+      return (
+        <img
+          src={resolveSrc(imageUrl)}
+          alt={brand}
+          draggable={false}
+          onError={() => setFailed(true)}
+          className="h-full w-full object-contain"
+        />
+      )
+    }
+    return (
+      <div className="h-3/5 w-3/5" style={{ color }}>
+        <CategoryIcon category={category} />
       </div>
     )
   }

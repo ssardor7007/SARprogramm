@@ -18,6 +18,7 @@ import {
 import { BUILDING_TYPE_LABELS, wallMaterialLabel, type BuildingType, type WallMaterial } from '../lib/designer'
 import { genId, usePersistedState } from '../lib/storage'
 import { AlertIcon, RackIcon } from './NavIcons'
+import { ProductImage } from './ProductImage'
 import { RackWorkspace } from './RackWorkspace'
 
 interface Props {
@@ -273,13 +274,13 @@ export function BuildingPlanView({ catalog }: Props) {
     dragRef.current = null
   }
 
-  function onApPointerDown(e: ReactPointerEvent<SVGCircleElement>, apId: string, pos: { x: number; y: number }) {
+  function onApPointerDown(e: ReactPointerEvent<HTMLDivElement>, apId: string, pos: { x: number; y: number }) {
     e.stopPropagation()
     dragRef.current = { kind: 'ap', apId, startClientX: e.clientX, startClientY: e.clientY, startX: pos.x, startY: pos.y }
     e.currentTarget.setPointerCapture(e.pointerId)
   }
 
-  function onApPointerMove(e: ReactPointerEvent<SVGCircleElement>) {
+  function onApPointerMove(e: ReactPointerEvent<HTMLDivElement>) {
     const d = dragRef.current
     if (!d || d.kind !== 'ap') return
     const dxM = (e.clientX - d.startClientX) / PX_PER_M
@@ -464,7 +465,7 @@ export function BuildingPlanView({ catalog }: Props) {
         <div>
           <p className="no-print mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400">
             <span>
-              Тёмная метка <RackIcon className="inline h-3.5 w-3.5 align-[-2px]" /> — коммутатор/серверная этого этажа, перетащите её. Синие точки — точки доступа Wi-Fi: их можно
+              Тёмная метка <RackIcon className="inline h-3.5 w-3.5 align-[-2px]" /> — коммутатор/серверная этого этажа, перетащите её. Кружки с фото — точки доступа Wi-Fi (подобранная модель, подпись снизу): их можно
               свободно перетаскивать мышью, двойной клик удаляет точку. Одна клетка сетки = 1 м.
             </span>
             <span className="flex items-center gap-2 whitespace-nowrap">
@@ -556,24 +557,46 @@ export function BuildingPlanView({ catalog }: Props) {
                       strokeDasharray="4 3"
                       opacity={0.5}
                     />
-                    <circle
-                      cx={ap.pos.x * PX_PER_M}
-                      cy={ap.pos.y * PX_PER_M}
-                      r={7}
-                      fill="#2563eb"
-                      stroke="white"
-                      strokeWidth={1.5}
-                      style={{ pointerEvents: 'all', cursor: 'move' }}
-                      onPointerDown={(e) => onApPointerDown(e, ap.id, ap.pos)}
-                      onPointerMove={onApPointerMove}
-                      onPointerUp={onAnyPointerUp}
-                      onDoubleClick={() => removeAP(ap.id)}
-                    >
-                      <title>{`Точка доступа — кабель ~${round1(ap.cableLengthM)} м. Перетащите, двойной клик — удалить.`}</title>
-                    </circle>
                   </g>
                 ))}
               </svg>
+
+              {/* Точки доступа — фото подобранной модели вместо безликой точки */}
+              {activeFloorResult?.aps.map((ap) => {
+                const product = activeFloorResult.apProduct
+                const name = product ? `${product.brand} ${product.model}` : 'Точка доступа'
+                return (
+                  <div
+                    key={ap.id}
+                    onPointerDown={(e) => onApPointerDown(e, ap.id, ap.pos)}
+                    onPointerMove={onApPointerMove}
+                    onPointerUp={onAnyPointerUp}
+                    onDoubleClick={() => removeAP(ap.id)}
+                    title={`${name} — кабель ~${round1(ap.cableLengthM)} м. Перетащите, двойной клик — удалить.`}
+                    className="absolute -translate-x-1/2 -translate-y-1/2 cursor-move touch-none select-none"
+                    style={{ left: ap.pos.x * PX_PER_M, top: ap.pos.y * PX_PER_M, zIndex: 4 }}
+                  >
+                    <div
+                      className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border-2 border-blue-600 p-1 shadow-md"
+                      style={{ backgroundColor: '#ffffff' }}
+                    >
+                      {product ? (
+                        <ProductImage imageUrl={product.imageUrl} brand={product.brand} category={product.category} size="marker" />
+                      ) : (
+                        <span className="h-3 w-3 rounded-full bg-blue-600" />
+                      )}
+                    </div>
+                    {product && (
+                      <span
+                        className="pointer-events-none absolute left-1/2 top-full mt-0.5 -translate-x-1/2 whitespace-nowrap rounded px-1 py-px text-[9px] font-medium leading-tight text-white"
+                        style={{ backgroundColor: 'rgba(15, 23, 42, 0.8)' }}
+                      >
+                        {product.model}
+                      </span>
+                    )}
+                  </div>
+                )
+              })}
 
               <div
                 onPointerDown={onSwitchPointerDown}
