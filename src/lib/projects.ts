@@ -1,5 +1,6 @@
 import type { BuildingPlan } from './buildingPlan'
 import type { DesignerInput } from './designer'
+import type { ProposalMeta } from './proposal'
 import type { RackLine } from './rackCart'
 import { genId, load, loadOptional, remove, save } from './storage'
 import type { Brand } from '../types'
@@ -16,6 +17,7 @@ interface ProjectSnapshot {
   buildingPlan?: BuildingPlan
   rackHeight?: number
   rackLines?: RackLine[]
+  proposalMeta?: ProposalMeta
 }
 
 /**
@@ -30,6 +32,7 @@ const LIVE_KEYS = {
   buildingPlan: 'building-plan',
   rackHeight: 'rack-height',
   rackLines: 'rack-lines',
+  proposalMeta: 'proposal-meta',
 } as const
 
 const PROJECTS_KEY = 'projects'
@@ -46,6 +49,7 @@ function snapshotLive(): ProjectSnapshot {
     buildingPlan: loadOptional(LIVE_KEYS.buildingPlan),
     rackHeight: loadOptional(LIVE_KEYS.rackHeight),
     rackLines: loadOptional(LIVE_KEYS.rackLines),
+    proposalMeta: loadOptional(LIVE_KEYS.proposalMeta),
   }
 }
 
@@ -55,6 +59,7 @@ function restoreLive(snapshot: ProjectSnapshot) {
   setOrClear(LIVE_KEYS.buildingPlan, snapshot.buildingPlan)
   setOrClear(LIVE_KEYS.rackHeight, snapshot.rackHeight)
   setOrClear(LIVE_KEYS.rackLines, snapshot.rackLines)
+  setOrClear(LIVE_KEYS.proposalMeta, snapshot.proposalMeta)
 }
 
 function setOrClear<T>(key: string, value: T | undefined) {

@@ -17,8 +17,9 @@ import {
 } from '../lib/buildingPlan'
 import { BUILDING_TYPE_LABELS, wallMaterialLabel, type BuildingType, type WallMaterial } from '../lib/designer'
 import { genId, usePersistedState } from '../lib/storage'
-import { AlertIcon, RackIcon } from './NavIcons'
+import { AlertIcon, QuoteIcon, RackIcon } from './NavIcons'
 import { ProductImage } from './ProductImage'
+import { ProposalDialog } from './ProposalDialog'
 import { RackWorkspace } from './RackWorkspace'
 
 interface Props {
@@ -99,6 +100,7 @@ export function BuildingPlanView({ catalog }: Props) {
   })
   const canvasRef = useRef<HTMLDivElement>(null)
   const heatmapCanvasRef = useRef<HTMLCanvasElement>(null)
+  const [showProposal, setShowProposal] = useState(false)
   const dragRef = useRef<DragState | null>(null)
   const drawStartRef = useRef<{ x: number; y: number } | null>(null)
 
@@ -738,9 +740,17 @@ export function BuildingPlanView({ catalog }: Props) {
               Кабель — ориентировочный расчёт по прямой (с запасом на слабину и разделку), без учёта коробов, разъёмов и работ.
             </p>
 
-            <button onClick={() => window.print()} className="no-print mt-3 w-full rounded bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700">
-              Печать / сохранить как PDF
+            <button
+              onClick={() => setShowProposal(true)}
+              className="no-print mt-3 flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold shadow-sm"
+              style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-ink)' }}
+            >
+              <span className="h-4 w-4">
+                <QuoteIcon />
+              </span>
+              КП для клиента (PDF)
             </button>
+            <p className="no-print mt-1.5 text-center text-[11px] text-slate-400">От вашего имени: логотип, контакты, ваши цены</p>
           </div>
         </div>
       </div>
@@ -754,6 +764,8 @@ export function BuildingPlanView({ catalog }: Props) {
         </p>
         <RackWorkspace catalog={catalog} />
       </div>
+
+      {showProposal && <ProposalDialog result={result} onClose={() => setShowProposal(false)} />}
     </div>
   )
 }
