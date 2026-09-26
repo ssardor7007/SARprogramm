@@ -463,8 +463,10 @@ export function BuildingPlanView({ catalog }: Props) {
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_340px]">
-        <div>
+      {/* minmax(0,1fr) + min-w-0: чертёж (960 px) прокручивается внутри своей колонки, а не
+          расталкивает сетку и не наезжает на правую панель с кнопками. */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="min-w-0">
           <p className="no-print mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400">
             <span>
               Тёмная метка <RackIcon className="inline h-3.5 w-3.5 align-[-2px]" /> — коммутатор/серверная этого этажа, перетащите её. Значки с фото — точки доступа Wi-Fi (подобранная модель, подпись снизу): их можно
