@@ -1,4 +1,5 @@
 import { CATEGORY_LABELS, type Brand, type PriceCategory, type Product } from '../types'
+import { apPoeWatts, hasPoeOut, productFacts, switchQtyFor } from './productFacts'
 
 export type WallMaterial = 'open' | 'drywall' | 'brick' | 'concrete'
 export type Tier = PriceCategory
@@ -180,6 +181,16 @@ function narrowPool(pool: Product[], category: Product['category'], apMountType:
     const matched = pool.filter((p) => matchesApMount(p, apMountType))
     if (matched.length > 0) pool = matched
   }
+  // «Любой монтаж» — это про потолок/стену внутри здания: уличную точку внутрь не предлагаем
+  if (category === 'ap' && apMountType === 'any') {
+    const indoor = pool.filter((p) => classifyApMount(p) !== 'outdoor')
+    if (indoor.length > 0) pool = indoor
+  }
+  // Основной шлюз объекта — проводной роутер; 4G/5G-модемы и CPE — только если другого нет
+  if (category === 'router') {
+    const wired = pool.filter((p) => !/4G|5G|LTE|CPE/i.test(`${p.model} ${p.specs['Характеристики'] ?? ''}`))
+    if (wired.length > 0) pool = wired
+  }
   return pool
 }
 
@@ -249,6 +260,58 @@ function pickForTierAndBrand(
     product: sorted[Math.floor(sorted.length / 2)],
     note: `У бренда ${preferredBrand} нет модели уровня «${TIER_LABELS[tier]}» для «${CATEGORY_LABELS[category]}» — предложена ближайшая по цене модель этого же бренда.`,
   }
+}
+
+/**
+ * PoE-коммутатор под нужное число портов и мощность: среди моделей сегмента (и бренда, если
+ * выбран) берём комплект с минимальной суммой — например, один 24-портовый вместо трёх 8-портовых.
+ * Для точек доступа отбрасываем модели с портами 10/100: Wi‑Fi упрётся в кабель.
+ */
+function pickPoeSwitch(
+  catalog: Product[],
+  tier: Tier,
+  preferredBrand: BrandFilter,
+  portsNeeded: number,
+  wattsNeeded: number,
+  needGigabit: boolean,
+): { product?: Product; qty: number; note?: string } {
+  const option = (p: Product) => {
+    if (p.category !== 'switch' || !hasPoeOut(p)) return undefined
+    if (needGigabit && productFacts(p).fastPoe) return undefined
+    const qty = switchQtyFor(p, portsNeeded, wattsNeeded)
+    return qty <= 6 ? { product: p, qty, total: qty * p.priceUSD } : undefined
+  }
+  const best = (pool: Product[]) =>
+    pool
+      .map(option)
+      .filter((o): o is { product: Product; qty: number; total: number } => Boolean(o))
+      .sort((a, b) => a.total - b.total || a.qty - b.qty)[0]
+
+  const brandPool = preferredBrand === 'all' ? catalog : catalog.filter((p) => p.brand === preferredBrand)
+  if (tier === 'premium' && preferredBrand === 'all') {
+    const ui = best(catalog.filter((p) => p.brand === 'Ubiquiti (UniFi)'))
+    if (ui && ui.qty <= 2) return ui
+  }
+  const exact = best(brandPool.filter((p) => p.priceCategory === tier))
+  if (exact) return exact
+  const sameBrand = preferredBrand === 'all' ? undefined : best(brandPool)
+  if (sameBrand) {
+    return {
+      ...sameBrand,
+      note: `У бренда ${preferredBrand} нет PoE-коммутатора уровня «${TIER_LABELS[tier]}» под ${portsNeeded} портов — предложена ближайшая модель этого же бренда.`,
+    }
+  }
+  const any = best(catalog.filter((p) => p.priceCategory === tier)) ?? best(catalog)
+  if (any) {
+    return {
+      ...any,
+      note:
+        preferredBrand === 'all'
+          ? undefined
+          : `У бренда ${preferredBrand} нет подходящего PoE-коммутатора — подобран аналог другого бренда.`,
+    }
+  }
+  return { qty: 0 }
 }
 
 /** Сколько устройств уверенно обслуживает одна точка доступа в этом сегменте — бюджетные модели слабее, премиум держит больше клиентов. */
@@ -346,25 +409,31 @@ function designTier(input: DesignerInput, catalog: Product[], tier: Tier): TierR
 
   const cameraCount = input.cameraTier === 'none' ? 0 : input.cameraCount
   const poePortsNeeded = Math.ceil((apCount + outdoorAPs + cameraCount) * POE_PORT_HEADROOM)
+  // Мощность PoE: точки доступа по поколению Wi‑Fi, камеры ~7 Вт, запас 20%
+  const poeWattsNeeded = Math.ceil((apCount * apPoeWatts(apProduct) + outdoorAPs * 15 + cameraCount * 7) * 1.2)
 
   if (poePortsNeeded > 0) {
-    const swCount = poePortsNeeded <= 8 ? 1 : Math.ceil(poePortsNeeded / 24)
-    const { product: sw, note: swNote } = pickForTierAndBrand(catalog, 'switch', tier, input.preferredBrand)
+    const { product: sw, qty: swCount, note: swNote } = pickPoeSwitch(catalog, tier, input.preferredBrand, poePortsNeeded, poeWattsNeeded, apCount + outdoorAPs > 0)
     if (swNote) warnings.push(swNote)
     if (sw) {
       brands.add(sw.brand)
+      const f = productFacts(sw)
       lines.push({
         role: 'PoE-коммутатор',
         product: sw,
         qty: swCount,
-        reason: `Нужно ~${poePortsNeeded} PoE-портов с запасом`,
+        reason: `Нужно ~${poePortsNeeded} PoE-портов и ~${poeWattsNeeded} Вт с запасом${f.poePorts ? ` · у модели ${f.poePorts} PoE-портов` : ''}${f.poeBudgetW ? `, ${f.poeBudgetW} Вт` : ''}`,
       })
     } else {
-      warnings.push(`В сегменте «${TIER_LABELS[tier]}» нет коммутатора в каталоге.`)
+      warnings.push(`В сегменте «${TIER_LABELS[tier]}» нет подходящего PoE-коммутатора в каталоге.`)
     }
   }
 
-  const { product: router, note: routerNote } = pickForTierAndBrand(catalog, 'router', tier, input.preferredBrand)
+  // Роутер не экономим ниже нагрузки: если клиентов больше, чем тянет сегмент, берём роутер уровнем выше
+  const TIER_STEP: Tier[] = ['budget', 'mid', 'premium']
+  let routerTier = tier
+  while (concurrentDevices > ROUTER_LOAD_CAP[routerTier] && routerTier !== 'premium') routerTier = TIER_STEP[TIER_STEP.indexOf(routerTier) + 1]
+  const { product: router, note: routerNote } = pickForTierAndBrand(catalog, 'router', routerTier, input.preferredBrand)
   if (routerNote) warnings.push(routerNote)
   if (router) {
     brands.add(router.brand)
@@ -374,7 +443,11 @@ function designTier(input: DesignerInput, catalog: Product[], tier: Tier): TierR
       qty: 1,
       reason: `Расчёт на ~${concurrentDevices} одновременных пользователей сети`,
     })
-    if (concurrentDevices > ROUTER_LOAD_CAP[tier]) {
+    if (routerTier !== tier) {
+      warnings.push(
+        `Роутер взят из сегмента «${TIER_LABELS[routerTier]}»: модели уровня «${TIER_LABELS[tier]}» не рассчитаны на ~${concurrentDevices} одновременных клиентов.`,
+      )
+    } else if (concurrentDevices > ROUTER_LOAD_CAP[tier]) {
       warnings.push(
         `При ~${concurrentDevices} одновременных клиентах роутер сегмента «${TIER_LABELS[tier]}» работает на пределе — возможны просадки в пиковой нагрузке.`,
       )

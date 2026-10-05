@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 
 const PREFIX = 'sar-net-compare:'
 
@@ -93,4 +93,34 @@ export function usePersistedState<T>(key: string, initial: T) {
 
 export function genId(prefix: string) {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
+}
+
+/**
+ * Персистентное значение, общее для всех компонентов сразу: валюта, список сравнения,
+ * позиции КП. Изменение в одном месте (кнопка «В КП» в карточке товара) мгновенно видно
+ * в другом (счётчик на вкладке «Коммерческое предложение») без прокидывания пропсов.
+ */
+export function createSharedState<T>(key: string, initial: T) {
+  const listeners = new Set<() => void>()
+  let value: T | undefined
+  const get = () => {
+    if (value === undefined) value = load(key, initial)
+    return value
+  }
+  const set = (next: T | ((prev: T) => T)) => {
+    value = typeof next === 'function' ? (next as (prev: T) => T)(get()) : next
+    save(key, value)
+    listeners.forEach((l) => l())
+  }
+  const subscribe = (fn: () => void) => {
+    listeners.add(fn)
+    return () => {
+      listeners.delete(fn)
+    }
+  }
+  const getServer = () => initial
+  function useShared() {
+    return [useSyncExternalStore(subscribe, get, getServer), set] as const
+  }
+  return { use: useShared, get, set }
 }

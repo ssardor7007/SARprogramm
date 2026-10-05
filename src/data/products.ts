@@ -7,7 +7,7 @@ import type { Product } from '../types'
  * сохранённой и переинициализирует каталог свежим списком при несовпадении.
  * Увеличивайте на 1 при каждой content-fix правке PRODUCTS.
  */
-export const CATALOG_VERSION = 3
+export const CATALOG_VERSION = 4
 
 /**
  * Каталог площадки. TP-Link/Wi-Tek/Hikvision/Ubiquiti/MikroTik/Оптика — из
@@ -2661,6 +2661,8 @@ export const PRODUCTS: Product[] = [
     model: 'USW-24-POE',
     specs: {
       'Характеристики': 'Управляемый PoE коммутатор Ubiquiti UniFi Switch USW-24-POE Gen2 2-го уровня 24x GE, 2x SFP',
+      Портов: '16x Gigabit PoE+ + 8x Gigabit + 2x SFP',
+      'PoE-бюджет': '95 Вт',
       'Цена с НДС (сум)': '7 125 000',
     },
     priceUSD: 570.0,

@@ -7,6 +7,7 @@ import { genId, usePersistedState } from '../lib/storage'
 import { CloseIcon } from './NavIcons'
 import { ProductImage } from './ProductImage'
 import { RackElevation } from './RackElevation'
+import { useMoney } from '../lib/money'
 
 interface Props {
   catalog: Product[]
@@ -18,6 +19,7 @@ const CATEGORY_ORDER: Category[] = ['router', 'switch', 'ap', 'camera', 'nvr', '
 /** Интерактивная рабочая область серверного шкафа — поиск/добавление оборудования, сам шкаф и то, что
  * подключено к нему, но стоит на объекте. Встраивается в «План здания», как физическая часть проекта. */
 export function RackWorkspace({ catalog }: Props) {
+  const money = useMoney()
   const [rackHeight, setRackHeight] = usePersistedState<(typeof RACK_HEIGHTS)[number]>('rack-height', 42)
   const [lines, setLines] = usePersistedState<RackLine[]>('rack-lines', [])
   const [search, setSearch] = useState('')
@@ -170,7 +172,7 @@ export function RackWorkspace({ catalog }: Props) {
                       <div className="mt-1 line-clamp-2 text-xs font-medium text-slate-900">
                         {p.brand} {p.model}
                       </div>
-                      <div className="text-xs text-slate-400">${p.priceUSD}</div>
+                      <div className="text-xs text-slate-400">{money.fmt(p.priceUSD)}</div>
                       <div className="mt-2 flex items-center gap-1.5">
                         <button
                           onClick={() => removeOne(p.id)}
@@ -401,7 +403,7 @@ export function RackWorkspace({ catalog }: Props) {
         )}
         <div className="flex items-center justify-between border-t border-slate-100 pt-2 text-base">
           <span className="font-semibold text-slate-900">Итого оборудование</span>
-          <span className="text-xl font-bold text-slate-900">${totalPrice.toLocaleString()}</span>
+          <span className="text-xl font-bold text-slate-900">{money.fmt(totalPrice)}</span>
         </div>
       </div>
 

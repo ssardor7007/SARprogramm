@@ -1,6 +1,8 @@
 import { CATEGORY_LABELS, PRICE_CATEGORY_LABELS } from '../types'
 import type { Product } from '../types'
 import { stockLabel } from '../lib/matching'
+import { useMoney } from '../lib/money'
+import { INTERNAL_SPEC } from '../lib/productFacts'
 import { ProductImage } from './ProductImage'
 
 interface Props {
@@ -20,12 +22,15 @@ const stockToneClass: Record<'ok' | 'low' | 'out', string> = {
 }
 
 export function ComparisonCard({ reference, offer, alternatives, qty, onQtyChange, onOfferChange, onRemove }: Props) {
+  const money = useMoney()
   const stock = stockLabel(offer.stock)
-  const specKeys = Array.from(new Set([...(reference ? Object.keys(reference.specs) : []), ...Object.keys(offer.specs)]))
+  const specKeys = Array.from(new Set([...(reference ? Object.keys(reference.specs) : []), ...Object.keys(offer.specs)])).filter(
+    (k) => !INTERNAL_SPEC.test(k),
+  )
   const priceDiff = reference ? offer.priceUSD - reference.priceUSD : undefined
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4 print:break-inside-avoid">
+    <div className="rounded-lg bg-[var(--surface)] p-1 print:break-inside-avoid">
       <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
         <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
           {CATEGORY_LABELS[offer.category]}
@@ -45,7 +50,7 @@ export function ComparisonCard({ reference, offer, alternatives, qty, onQtyChang
                 <div className="font-medium text-slate-700">
                   {reference.brand} {reference.model}
                 </div>
-                <div className="text-slate-400">${reference.priceUSD}</div>
+                <div className="text-slate-400">{money.fmt(reference.priceUSD)}</div>
               </div>
             </div>
             <span className="text-xl text-slate-300">→</span>
@@ -64,7 +69,7 @@ export function ComparisonCard({ reference, offer, alternatives, qty, onQtyChang
           >
             {alternatives.map((alt) => (
               <option key={alt.id} value={alt.id}>
-                {alt.brand} {alt.model} — ${alt.priceUSD}
+                {alt.brand} {alt.model} — {money.fmt(alt.priceUSD)}
               </option>
             ))}
           </select>
@@ -84,9 +89,9 @@ export function ComparisonCard({ reference, offer, alternatives, qty, onQtyChang
           <span className="hidden print:inline">{qty} шт.</span>
         </div>
         <div className="ml-auto text-right">
-          <div className="text-lg font-semibold text-slate-900">${(offer.priceUSD * qty).toLocaleString()}</div>
+          <div className="text-lg font-semibold text-slate-900">{money.fmt(offer.priceUSD * qty)}</div>
           <div className="text-xs text-slate-400">
-            ${offer.priceUSD} × {qty} · {PRICE_CATEGORY_LABELS[offer.priceCategory]}
+            {money.fmt(offer.priceUSD)} × {qty} · {PRICE_CATEGORY_LABELS[offer.priceCategory]}
           </div>
         </div>
       </div>
@@ -100,8 +105,8 @@ export function ComparisonCard({ reference, offer, alternatives, qty, onQtyChang
             }`}
           >
             {priceDiff <= 0
-              ? `Дешевле на $${Math.abs(priceDiff).toLocaleString()} за штуку`
-              : `Дороже на $${priceDiff.toLocaleString()} за штуку`}
+              ? `Дешевле на ${money.fmt(Math.abs(priceDiff))} за штуку`
+              : `Дороже на ${money.fmt(priceDiff)} за штуку`}
           </span>
         )}
       </div>

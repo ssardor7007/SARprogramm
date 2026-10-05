@@ -1,6 +1,7 @@
 import type { Product } from '../types'
 import { findProduct, type BuildingType, type WallMaterial } from './designer'
 import { genId } from './storage'
+import { apPoeWatts, switchQtyFor } from './productFacts'
 
 export const CANVAS_W_M = 40
 export const CANVAS_H_M = 24
@@ -306,14 +307,12 @@ export function newPlacedAP(pos: Point): PlacedAP {
   return { id: genId('ap'), pos }
 }
 
-function pickSwitch(catalog: Product[], portsNeeded: number, preferred?: Product): { product?: Product; qty: number } {
+function pickSwitch(catalog: Product[], portsNeeded: number, wattsNeeded: number, preferred?: Product): { product?: Product; qty: number } {
   if (portsNeeded <= 0) return { product: undefined, qty: 0 }
-  const qty = portsNeeded <= 8 ? 1 : Math.ceil(portsNeeded / 24)
-  if (preferred) return { product: preferred, qty }
-  if (portsNeeded <= 8) {
-    return { product: findProduct(catalog, 'tpl-sg2210p', 'switch', 'budget'), qty: 1 }
-  }
-  return { product: findProduct(catalog, 'tpl-sg3428mp', 'switch', 'mid'), qty }
+  // Количество — по реальным PoE-портам и бюджету PoE выбранной модели, а не «по 24 порта на коммутатор»
+  if (preferred) return { product: preferred, qty: switchQtyFor(preferred, portsNeeded, wattsNeeded) }
+  const product = portsNeeded <= 8 ? findProduct(catalog, 'tpl-sg2210p', 'switch', 'budget') : findProduct(catalog, 'tpl-sg3428mp', 'switch', 'mid')
+  return { product, qty: product ? switchQtyFor(product, portsNeeded, wattsNeeded) : 0 }
 }
 
 export function planBuilding(plan: BuildingPlan, catalog: Product[]): BuildingPlanResult {
@@ -346,7 +345,8 @@ export function planBuilding(plan: BuildingPlan, catalog: Product[]): BuildingPl
     }
 
     const portsNeeded = Math.ceil(aps.length * 1.15)
-    const { product: switchProduct, qty: switchQty } = pickSwitch(catalog, portsNeeded, preferredSwitch)
+    const wattsNeeded = aps.length * apPoeWatts(apProduct) * 1.2
+    const { product: switchProduct, qty: switchQty } = pickSwitch(catalog, portsNeeded, wattsNeeded, preferredSwitch)
     if (portsNeeded > 0 && !switchProduct) {
       warnings.push(`Этаж «${floor.name}»: в каталоге нет подходящего PoE-коммутатора.`)
     }

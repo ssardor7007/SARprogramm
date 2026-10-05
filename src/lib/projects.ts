@@ -11,7 +11,7 @@ export interface ProjectMeta {
   updatedAt: number
 }
 
-interface ProjectSnapshot {
+export interface ProjectSnapshot {
   designerInput?: DesignerInput
   selectedBrands?: Brand[]
   buildingPlan?: BuildingPlan
@@ -153,4 +153,27 @@ export function deleteProject(id: string): string {
   restoreLive(load<ProjectSnapshot>(dataKey(target.id), {}))
   save(ACTIVE_KEY, target.id)
   return target.id
+}
+
+/** Снимок активного проекта для отправки ссылкой. */
+export function exportActiveProject(): { name: string; snapshot: ProjectSnapshot } {
+  saveActiveSnapshot()
+  const id = getActiveProjectId()
+  const meta = load<ProjectMeta[]>(PROJECTS_KEY, []).find((p) => p.id === id)
+  return { name: meta?.name ?? 'Проект', snapshot: load<ProjectSnapshot>(dataKey(id), {}) }
+}
+
+/** Открывает присланный проект как новый (свои проекты не трогаются) и делает его активным. */
+export function importProject(name: string, snapshot: ProjectSnapshot): ProjectMeta {
+  saveActiveSnapshot()
+  const existing = load<ProjectMeta[]>(PROJECTS_KEY, [])
+  const base = name.trim() || 'Присланный проект'
+  // Не путаем присланный проект со своим одноимённым
+  const unique = existing.some((p) => p.name === base) ? `${base} (присланный)` : base
+  const meta: ProjectMeta = { id: genId('project'), name: unique, updatedAt: Date.now() }
+  save(PROJECTS_KEY, [...existing, meta])
+  save(dataKey(meta.id), snapshot)
+  restoreLive(snapshot)
+  save(ACTIVE_KEY, meta.id)
+  return meta
 }

@@ -43,7 +43,7 @@ export const DEFAULT_PROPOSAL_META: ProposalMeta = {
   installNote: 'Монтаж точек доступа и коммутации, прокладка кабеля, настройка и сдача сети',
   includeCable: true,
   currency: 'USD',
-  uzsRate: 12700,
+  uzsRate: 12500,
   intro:
     'Мы подготовили для вас решение по беспроводной сети: подобрали оборудование под нагрузку объекта, рассчитали количество и места установки точек доступа по плану каждого этажа и проверили покрытие Wi-Fi с учётом материалов стен.',
   terms: [
@@ -53,6 +53,10 @@ export const DEFAULT_PROPOSAL_META: ProposalMeta = {
     'Оплата: 70% предоплата, 30% после сдачи объекта.',
   ].join('\n'),
 }
+
+/** Вступление для КП из вкладки «Коммерческое предложение» — там нет плана здания и карты Wi-Fi. */
+export const DEFAULT_LIST_INTRO =
+  'Мы подобрали для вас сетевое оборудование под задачи объекта: сравнили модели разных брендов по характеристикам и цене и выбрали оптимальный вариант. Ниже — спецификация с ценами и условия поставки.'
 
 export interface ProposalLine {
   product: Product
@@ -94,6 +98,25 @@ export function buildProposalTotals(result: BuildingPlanResult, meta: ProposalMe
   const cableUSD = cableM * CABLE_PRICE_PER_M_USD * k
   const installUSD = Math.max(0, meta.installUSD)
   return { lines, equipmentUSD, cableM, cableUSD, installUSD, totalUSD: equipmentUSD + cableUSD + installUSD }
+}
+
+/** Позиции КП из простого списка товаров (вкладка «Коммерческое предложение»). */
+export function buildListTotals(items: { product: Product; qty: number }[], meta: ProposalMeta): ProposalTotals {
+  const k = 1 + Math.max(0, meta.markupPct) / 100
+  const byId = new Map<string, { product: Product; qty: number }>()
+  for (const { product, qty } of items) {
+    if (qty <= 0) continue
+    const cur = byId.get(product.id)
+    if (cur) cur.qty += qty
+    else byId.set(product.id, { product, qty })
+  }
+  const lines = [...byId.values()].map(({ product, qty }) => {
+    const unitUSD = product.priceUSD * k
+    return { product, qty, unitUSD, totalUSD: unitUSD * qty }
+  })
+  const equipmentUSD = lines.reduce((s, l) => s + l.totalUSD, 0)
+  const installUSD = Math.max(0, meta.installUSD)
+  return { lines, equipmentUSD, cableM: 0, cableUSD: 0, installUSD, totalUSD: equipmentUSD + installUSD }
 }
 
 export function formatMoney(usd: number, meta: Pick<ProposalMeta, 'currency' | 'uzsRate'>, opts: { exact?: boolean } = {}) {

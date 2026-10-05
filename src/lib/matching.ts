@@ -1,4 +1,5 @@
 import type { Product } from '../types'
+import { hasPoeOut, productFacts } from './productFacts'
 
 /**
  * Подбор лучшей альтернативы товару в едином каталоге.
@@ -32,8 +33,46 @@ export function alternativesInCategory(category: Product['category'], catalog: P
   return catalog.filter((p) => p.category === category)
 }
 
+/** Цвет плашки наличия (тема день/ночь подменяет палитру emerald/amber/red) */
+export const STOCK_TONE: Record<'ok' | 'low' | 'out', string> = {
+  ok: 'text-emerald-700 bg-emerald-50',
+  low: 'text-amber-700 bg-amber-50',
+  out: 'text-red-700 bg-red-50',
+}
+
 export function stockLabel(stock: number): { text: string; tone: 'ok' | 'low' | 'out' } {
   if (stock <= 0) return { text: 'Нет в наличии', tone: 'out' }
   if (stock <= 5) return { text: `Осталось мало: ${stock} шт.`, tone: 'low' }
   return { text: `В наличии: ${stock} шт.`, tone: 'ok' }
+}
+
+/**
+ * Похожие товары других брендов для карточки товара: та же категория и тот же «класс»
+ * (PoE/без PoE и число портов у коммутатора, поколение Wi-Fi и улица/помещение у точки
+ * доступа, подтип у «прочего»), ближе всего по цене.
+ */
+export function similarProducts(reference: Product, catalog: Product[], limit = 4): Product[] {
+  const rf = productFacts(reference)
+  const score = (p: Product) => {
+    const f = productFacts(p)
+    let s = 0
+    if (p.brand !== reference.brand) s += 2
+    if (reference.category === 'switch') {
+      if (hasPoeOut(p) === hasPoeOut(reference)) s += 3
+      if (rf.ports && f.ports) s += Math.max(0, 2 - Math.abs(Math.log2(f.ports / rf.ports)))
+    } else if (reference.category === 'ap') {
+      if (f.wifi && f.wifi === rf.wifi) s += 3
+      if (f.outdoor === rf.outdoor) s += 2
+    } else if (reference.category === 'other') {
+      if (f.kind === rf.kind) s += 4
+    }
+    const priceGap = Math.abs(Math.log((p.priceUSD + 1) / (reference.priceUSD + 1)))
+    return s - priceGap * 1.5
+  }
+  return catalog
+    .filter((p) => p.category === reference.category && p.id !== reference.id)
+    .map((p) => ({ p, s: score(p) }))
+    .sort((a, b) => b.s - a.s)
+    .slice(0, limit)
+    .map((x) => x.p)
 }

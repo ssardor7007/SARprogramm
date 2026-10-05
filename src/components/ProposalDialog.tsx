@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import type { Product } from '../types'
 import type { BuildingPlanResult } from '../lib/buildingPlan'
+import { useQuoteMeta } from '../lib/cart'
 import { ACCENT_PRESETS, readLogoFile, useInstallerProfile } from '../lib/installerProfile'
 import { PAGE_H, PAGE_W, exportPagesToPdf } from '../lib/pdfExport'
 import {
   DEFAULT_PROPOSAL_META,
+  buildListTotals,
   buildProposalTotals,
   formatMoney,
   newProposalNumber,
@@ -14,10 +17,16 @@ import { usePersistedState } from '../lib/storage'
 import { CloseIcon } from './NavIcons'
 import { ProposalPages, type FloorImage } from './ProposalPages'
 
+export type ProposalSource =
+  | { kind: 'plan'; result: BuildingPlanResult }
+  | { kind: 'list'; items: { product: Product; qty: number }[] }
+
 interface Props {
-  result: BuildingPlanResult
+  source: ProposalSource
   onClose: () => void
 }
+
+const NO_FLOORS: BuildingPlanResult['perFloor'] = []
 
 const inputCls =
   'mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--text-muted)] focus:border-[var(--accent)]'
@@ -45,9 +54,15 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
  * Коммерческое предложение по «Плану здания» от имени монтажника: слева реквизиты и условия,
  * справа живой предпросмотр страниц, «Скачать PDF» собирает файл прямо в браузере.
  */
-export function ProposalDialog({ result, onClose }: Props) {
+export function ProposalDialog({ source, onClose }: Props) {
   const { profile, update } = useInstallerProfile()
-  const [meta, setMeta] = usePersistedState<ProposalMeta>('proposal-meta', DEFAULT_PROPOSAL_META)
+  const result = source.kind === 'plan' ? source.result : undefined
+  const perFloor = result?.perFloor ?? NO_FLOORS
+  // КП по плану здания хранится в проекте объекта, КП из списка товаров — общее для вкладки «КП»
+  const [planMeta, setPlanMeta] = usePersistedState<ProposalMeta>('proposal-meta', DEFAULT_PROPOSAL_META)
+  const [listMeta, setListMeta] = useQuoteMeta()
+  const meta = source.kind === 'plan' ? planMeta : listMeta
+  const setMeta = source.kind === 'plan' ? setPlanMeta : setListMeta
   // Номер КП придумываем один раз и сохраняем вместе с первым же изменением формы.
   const [fallbackNumber] = useState(newProposalNumber)
   const m = useMemo(() => ({ ...DEFAULT_PROPOSAL_META, ...meta, number: meta.number || fallbackNumber }), [meta, fallbackNumber])
@@ -79,13 +94,13 @@ export function ProposalDialog({ result, onClose }: Props) {
 
   const floorsKey = JSON.stringify([
     profile.accent,
-    result.perFloor.map((f) => [f.floor.id, f.floor.rooms, f.floor.switchPoint, f.aps.map((a) => [a.pos, a.radius]), f.apProduct?.id]),
+    perFloor.map((f) => [f.floor.id, f.floor.rooms, f.floor.switchPoint, f.aps.map((a) => [a.pos, a.radius]), f.apProduct?.id]),
   ])
   useEffect(() => {
     let cancelled = false
     ;(async () => {
       const next: Record<string, FloorImage> = {}
-      for (const f of result.perFloor) {
+      for (const f of perFloor) {
         if (f.aps.length === 0) continue
         next[f.floor.id] = await renderFloorImage(f, profile.accent)
       }
@@ -98,7 +113,10 @@ export function ProposalDialog({ result, onClose }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [floorsKey])
 
-  const totals = useMemo(() => buildProposalTotals(result, m), [result, m])
+  const totals = useMemo(
+    () => (source.kind === 'plan' ? buildProposalTotals(source.result, m) : buildListTotals(source.items, m)),
+    [source, m],
+  )
   const hasEquipment = totals.lines.length > 0
 
   async function onLogo(file?: File) {
@@ -251,10 +269,12 @@ export function ProposalDialog({ result, onClose }: Props) {
                   <input className={inputCls} value={m.installNote} onChange={(e) => patch({ installNote: e.target.value })} />
                 </Field>
               )}
-              <label className="flex items-center gap-2 text-sm text-[var(--text)]">
-                <input type="checkbox" checked={m.includeCable} onChange={(e) => patch({ includeCable: e.target.checked })} />
-                Включить кабельные трассы ({Math.ceil(result.totalCableM)} м)
-              </label>
+              {result && (
+                <label className="flex items-center gap-2 text-sm text-[var(--text)]">
+                  <input type="checkbox" checked={m.includeCable} onChange={(e) => patch({ includeCable: e.target.checked })} />
+                  Включить кабельные трассы ({Math.ceil(result.totalCableM)} м)
+                </label>
+              )}
               <div>
                 <span className="text-xs font-medium text-[var(--text-muted)]">Валюта КП</span>
                 <div className="mt-1 inline-flex rounded-lg border border-[var(--border)] p-0.5">
@@ -294,7 +314,9 @@ export function ProposalDialog({ result, onClose }: Props) {
           <div ref={previewRef} className="min-h-0 flex-1 overflow-auto p-5" style={{ backgroundColor: '#5b6272' }}>
             {!hasEquipment ? (
               <div className="mx-auto mt-16 max-w-sm rounded-xl p-5 text-center text-sm" style={{ backgroundColor: '#ffffff', color: '#334155' }}>
-                На плане пока нет точек доступа. Постройте чертёж и нажмите «Расставить автоматически» — тогда появится что предложить клиенту.
+                {result
+                  ? 'На плане пока нет точек доступа. Постройте чертёж и нажмите «Расставить автоматически» — тогда появится что предложить клиенту.'
+                  : 'В КП пока нет товаров. Добавьте их из каталога, калькуляторов или поиском на вкладке «Коммерческое предложение».'}
               </div>
             ) : (
               <div style={{ width: PAGE_W * scale, height: (PAGE_H * pageCount + (24 / scale) * (pageCount - 1)) * scale, margin: '0 auto', overflow: 'hidden' }}>

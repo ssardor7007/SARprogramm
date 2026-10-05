@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { CheckIcon, ChevronDownIcon, FolderIcon } from './NavIcons'
+import { CheckIcon, ChevronDownIcon, FolderIcon, ShareIcon } from './NavIcons'
+import { ShareProjectDialog } from './ShareProject'
 import {
   createProject,
   deleteProject,
@@ -15,6 +16,7 @@ import {
  * чтобы разные объекты не затирали друг друга в одном и том же localStorage. */
 export function ProjectSwitcher() {
   const [open, setOpen] = useState(false)
+  const [sharing, setSharing] = useState(false)
   const [projects, setProjects] = useState<ProjectMeta[]>(() => listProjects())
   const activeId = getActiveProjectId()
   const active = projects.find((p) => p.id === activeId)
@@ -83,6 +85,16 @@ export function ProjectSwitcher() {
               ))}
             </div>
             <div className="border-t border-slate-100 py-1">
+              <button
+                onClick={() => {
+                  setOpen(false)
+                  setSharing(true)
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium text-blue-700 hover:bg-slate-50"
+              >
+                <ShareIcon className="h-4 w-4" />
+                Поделиться ссылкой
+              </button>
               <button onClick={handleCreate} className="block w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50">
                 + Новый проект
               </button>
@@ -96,6 +108,7 @@ export function ProjectSwitcher() {
           </div>
         </>
       )}
+      {sharing && <ShareProjectDialog onClose={() => setSharing(false)} />}
     </div>
   )
 }

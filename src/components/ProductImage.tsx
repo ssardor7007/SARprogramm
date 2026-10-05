@@ -7,7 +7,7 @@ interface Props {
   imageUrl?: string
   brand: string
   category: Category
-  size?: 'xs' | 'sm' | 'md' | 'lg' | 'fill' | 'marker'
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'fill' | 'marker'
 }
 
 /** Относительные пути (из public/) резолвятся с учётом base пути сборки — GitHub Pages/поддомен. */
@@ -27,8 +27,10 @@ export function ProductImage({ imageUrl, brand, category, size = 'md' }: Props) 
   const [failed, setFailed] = useState(false)
   const [cutoutFailed, setCutoutFailed] = useState(false)
   const color = brandColor(brand)
-  const dim = size === 'xs' ? 'h-5 w-5' : size === 'sm' ? 'h-10 w-10' : size === 'lg' ? 'h-24 w-24' : 'h-16 w-16'
-  const iconDim = size === 'xs' ? 'h-3 w-3' : size === 'sm' ? 'h-5 w-5' : size === 'lg' ? 'h-10 w-10' : 'h-8 w-8'
+  const dim =
+    size === 'xs' ? 'h-5 w-5' : size === 'sm' ? 'h-10 w-10' : size === 'lg' ? 'h-24 w-24' : size === 'xl' ? 'h-52 w-52 sm:h-60 sm:w-60' : 'h-16 w-16'
+  const iconDim =
+    size === 'xs' ? 'h-3 w-3' : size === 'sm' ? 'h-5 w-5' : size === 'lg' ? 'h-10 w-10' : size === 'xl' ? 'h-20 w-20' : 'h-8 w-8'
 
   // 'fill' — заполняет собой родителя (у которого должен быть position: relative и overflow: hidden),
   // а не занимает фиксированный квадрат: нужно для юнита стойки. Наши фото — это весь прибор целиком,
@@ -85,8 +87,9 @@ export function ProductImage({ imageUrl, brand, category, size = 'md' }: Props) 
       <img
         src={resolveSrc(imageUrl)}
         alt={brand}
+        loading="lazy"
         onError={() => setFailed(true)}
-        className={`${dim} shrink-0 rounded-lg border border-slate-200 bg-white object-contain p-1`}
+        className={`photo-tile ${dim} shrink-0 rounded-lg border border-slate-200 bg-white object-contain ${size === 'xl' ? 'p-4' : 'p-1'}`}
       />
     )
   }

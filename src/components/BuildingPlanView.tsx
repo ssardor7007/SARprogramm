@@ -20,6 +20,7 @@ import { genId, usePersistedState } from '../lib/storage'
 import { AlertIcon, QuoteIcon, RackIcon } from './NavIcons'
 import { ProductImage } from './ProductImage'
 import { ProposalDialog } from './ProposalDialog'
+import { useMoney } from '../lib/money'
 import { RackWorkspace } from './RackWorkspace'
 
 interface Props {
@@ -86,6 +87,7 @@ type DragState =
   | { kind: 'ap'; apId: string; startClientX: number; startClientY: number; startX: number; startY: number }
 
 export function BuildingPlanView({ catalog }: Props) {
+  const money = useMoney()
   const [plan, setPlan] = usePersistedState<BuildingPlan>('building-plan', defaultPlan())
   const [activeFloorId, setActiveFloorId] = useState(plan.floors[0]?.id)
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null)
@@ -730,13 +732,13 @@ export function BuildingPlanView({ catalog }: Props) {
               </div>
               <div className="flex justify-between text-xs text-slate-400">
                 <span>из них кабель, ориентировочно</span>
-                <span>${round1(result.cableCostUSD)}</span>
+                <span>{money.fmt(round1(result.cableCostUSD))}</span>
               </div>
             </div>
 
             <div className="mt-2 flex items-center justify-between border-t border-slate-100 pt-2">
               <span className="text-base font-semibold text-slate-900">Итого по проекту</span>
-              <span className="text-xl font-bold text-slate-900">${Math.round(result.totalUSD).toLocaleString()}</span>
+              <span className="text-xl font-bold text-slate-900">{money.fmt(Math.round(result.totalUSD))}</span>
             </div>
             <p className="mt-1 text-[11px] text-slate-400">
               Кабель — ориентировочный расчёт по прямой (с запасом на слабину и разделку), без учёта коробов, разъёмов и работ.
@@ -767,7 +769,7 @@ export function BuildingPlanView({ catalog }: Props) {
         <RackWorkspace catalog={catalog} />
       </div>
 
-      {showProposal && <ProposalDialog result={result} onClose={() => setShowProposal(false)} />}
+      {showProposal && <ProposalDialog source={{ kind: 'plan', result }} onClose={() => setShowProposal(false)} />}
     </div>
   )
 }

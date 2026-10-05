@@ -1,19 +1,24 @@
 import { useState, type ComponentType } from 'react'
 import { BuildingPlanView } from './components/BuildingPlanView'
+import { CalculatorsView } from './components/CalculatorsView'
 import { CatalogView } from './components/CatalogView'
+import { ContactFab } from './components/ContactFab'
+import { CurrencyToggle } from './components/CurrencyToggle'
 import { DesignerView } from './components/DesignerView'
-import { CatalogIcon, DesignerIcon, PlanIcon, QuoteIcon, ToolsIcon } from './components/NavIcons'
+import { CalcIcon, CatalogIcon, DesignerIcon, PlanIcon, QuoteIcon, ToolsIcon } from './components/NavIcons'
 import { ProjectSwitcher } from './components/ProjectSwitcher'
+import { IncomingProjectBanner } from './components/ShareProject'
 import { QuoteView } from './components/QuoteView'
 import { ThemeToggle } from './components/ThemeToggle'
 import { CATALOG_VERSION, PRODUCTS } from './data/products'
 import { brandColor } from './lib/brandTheme'
+import { useQuoteLines } from './lib/cart'
 import { visibleBrands } from './lib/features'
 import { usePersistedList } from './lib/storage'
 
 type Section = 'client' | 'pro'
 type ClientTab = 'catalog' | 'quote'
-type ProTab = 'designer' | 'plan'
+type ProTab = 'designer' | 'plan' | 'calc'
 
 const CLIENT_TABS: { id: ClientTab; label: string; icon: ComponentType }[] = [
   { id: 'catalog', label: 'Каталог', icon: CatalogIcon },
@@ -23,6 +28,7 @@ const CLIENT_TABS: { id: ClientTab; label: string; icon: ComponentType }[] = [
 const PRO_TABS: { id: ProTab; label: string; icon: ComponentType }[] = [
   { id: 'designer', label: 'Подбор по объекту', icon: DesignerIcon },
   { id: 'plan', label: 'План здания', icon: PlanIcon },
+  { id: 'calc', label: 'Калькуляторы', icon: CalcIcon },
 ]
 
 function App() {
@@ -31,6 +37,7 @@ function App() {
   const [proTab, setProTab] = useState<ProTab>('designer')
 
   const catalog = usePersistedList('products', PRODUCTS, CATALOG_VERSION)
+  const quoteCount = useQuoteLines().count
 
   const tabs = section === 'client' ? CLIENT_TABS : PRO_TABS
   const activeTab = section === 'client' ? clientTab : proTab
@@ -38,6 +45,7 @@ function App() {
 
   return (
     <div className="min-h-screen">
+      <IncomingProjectBanner />
       <header className="no-print border-b border-[var(--border)] bg-[var(--surface)]">
         <div className="mx-auto max-w-6xl px-4 pt-5 pb-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -88,13 +96,40 @@ function App() {
                       <Icon />
                     </span>
                     {t.label}
+                    {t.id === 'quote' && quoteCount > 0 && (
+                      <span
+                        className="ml-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none"
+                        style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-ink)' }}
+                        aria-label={`${quoteCount} шт. в КП`}
+                      >
+                        {quoteCount}
+                      </span>
+                    )}
                   </button>
                 )
               })}
             </nav>
 
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {section === 'pro' && <ProjectSwitcher />}
+              {quoteCount > 0 && section === 'pro' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSection('client')
+                    setClientTab('quote')
+                  }}
+                  className="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold"
+                  style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-ink)' }}
+                  title="Открыть коммерческое предложение"
+                >
+                  <span className="h-3.5 w-3.5">
+                    <QuoteIcon />
+                  </span>
+                  КП · {quoteCount}
+                </button>
+              )}
+              <CurrencyToggle />
               <ThemeToggle />
               <button
                 onClick={() => setSection(section === 'client' ? 'pro' : 'client')}
@@ -105,7 +140,8 @@ function App() {
                     <span className="h-3.5 w-3.5">
                       <ToolsIcon />
                     </span>
-                    Инструменты для монтажников
+                    <span className="sm:hidden">Инструменты</span>
+                    <span className="hidden sm:inline">Инструменты для монтажников</span>
                   </>
                 ) : (
                   '← В каталог'
@@ -125,7 +161,7 @@ function App() {
             onReset={catalog.resetToSeed}
           />
         )}
-        {section === 'client' && clientTab === 'quote' && <QuoteView catalog={catalog.items} />}
+        {section === 'client' && clientTab === 'quote' && <QuoteView catalog={catalog.items} onOpenCatalog={() => setClientTab('catalog')} />}
         {section === 'pro' && proTab === 'designer' && (
           <DesignerView
             catalog={catalog.items}
@@ -134,7 +170,9 @@ function App() {
           />
         )}
         {section === 'pro' && proTab === 'plan' && <BuildingPlanView catalog={catalog.items} />}
+        {section === 'pro' && proTab === 'calc' && <CalculatorsView catalog={catalog.items} />}
       </main>
+      <ContactFab />
     </div>
   )
 }

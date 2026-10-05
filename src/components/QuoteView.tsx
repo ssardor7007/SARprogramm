@@ -1,242 +1,317 @@
 import { useMemo, useState } from 'react'
-import type { Product, QuoteLine } from '../types'
-import { COMPANY_ADDRESS, COMPANY_NAME, COMPANY_TAGLINE, WHATSAPP_DISPLAY, whatsappLink } from '../lib/contacts'
-import { alternativesInCategory, findBestMatch } from '../lib/matching'
+import { CATEGORY_LABELS, type Product, type QuoteLine } from '../types'
+import { useQuoteLines, useQuoteMeta } from '../lib/cart'
+import { COMPANY_NAME, telegramShareLink, whatsappLink } from '../lib/contacts'
+import { STOCK_TONE, alternativesInCategory, findBestMatch, stockLabel } from '../lib/matching'
+import { useMoney } from '../lib/money'
+import { productSummary } from '../lib/proposal'
+import { factChips, productText } from '../lib/productFacts'
 import { genId } from '../lib/storage'
+import { downloadXlsx, safeFileName } from '../lib/xlsx'
 import { ComparisonCard } from './ComparisonCard'
+import { CloseIcon } from './NavIcons'
+import { ProductDetailDialog } from './ProductDetailDialog'
+import { ProductImage } from './ProductImage'
+import { ProposalDialog } from './ProposalDialog'
 
 interface Props {
   catalog: Product[]
+  onOpenCatalog?: () => void
 }
 
-function formatQuoteNumber(date: Date) {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  const suffix = Math.random().toString(36).slice(2, 6).toUpperCase()
-  return `КП-${y}${m}${d}-${suffix}`
+const btn = 'rounded-lg border border-[var(--border)] px-3 py-2 text-sm font-medium text-[var(--text)] hover:bg-black/5'
+
+function QtyStepper({ qty, onChange }: { qty: number; onChange: (n: number) => void }) {
+  return (
+    <div className="inline-flex items-center rounded-lg border border-[var(--border)]">
+      <button type="button" onClick={() => onChange(Math.max(1, qty - 1))} className="h-8 w-8 text-[var(--text-muted)] hover:bg-black/5" aria-label="Меньше">
+        −
+      </button>
+      <input
+        className="h-8 w-12 border-x border-[var(--border)] bg-transparent text-center text-sm text-[var(--text)]"
+        inputMode="numeric"
+        value={qty}
+        aria-label="Количество"
+        onChange={(e) => onChange(Math.max(1, Math.round(Number(e.target.value.replace(/\D/g, '')) || 1)))}
+      />
+      <button type="button" onClick={() => onChange(qty + 1)} className="h-8 w-8 text-[var(--text-muted)] hover:bg-black/5" aria-label="Больше">
+        +
+      </button>
+    </div>
+  )
 }
 
-export function QuoteView({ catalog }: Props) {
-  const [lines, setLines] = useState<QuoteLine[]>([])
+export function QuoteView({ catalog, onOpenCatalog }: Props) {
+  const money = useMoney()
+  const { lines, setLines } = useQuoteLines()
+  const [meta, setMeta] = useQuoteMeta()
   const [search, setSearch] = useState('')
-  const [clientName, setClientName] = useState('')
-  const [quoteDate] = useState(() => new Date())
-  const [quoteNumber] = useState(() => formatQuoteNumber(quoteDate))
+  const [showPdf, setShowPdf] = useState(false)
+  const [openProduct, setOpenProduct] = useState<Product | null>(null)
 
-  const searchResults = useMemo(() => {
-    if (!search.trim()) return []
-    const q = search.trim().toLowerCase()
-    return catalog.filter((p) => `${p.brand} ${p.model}`.toLowerCase().includes(q)).slice(0, 8)
-  }, [search, catalog])
+  const byId = useMemo(() => new Map(catalog.map((p) => [p.id, p])), [catalog])
+  const resolved = lines
+    .map((l) => ({ line: l, offer: byId.get(l.productId), reference: l.referenceProductId ? byId.get(l.referenceProductId) : undefined }))
+    .filter((x): x is { line: QuoteLine; offer: Product; reference: Product | undefined } => Boolean(x.offer))
 
-  function addReferenceItem(reference: Product) {
+  const searchResults = (() => {
+    const words = search.trim().toLowerCase().split(/\s+/).filter(Boolean)
+    if (!words.length) return []
+    return catalog.filter((p) => words.every((w) => `${p.brand} ${productText(p)}`.toLowerCase().includes(w))).slice(0, 8)
+  })()
+
+  function addDirect(product: Product) {
+    setLines((prev) => {
+      const i = prev.findIndex((l) => l.productId === product.id && !l.referenceProductId)
+      if (i === -1) return [...prev, { id: genId('line'), productId: product.id, qty: 1 }]
+      const next = [...prev]
+      next[i] = { ...next[i], qty: next[i].qty + 1 }
+      return next
+    })
+    setSearch('')
+  }
+
+  function addAnalog(reference: Product) {
     const match = findBestMatch(reference, catalog)
-    if (!match) {
-      alert('В каталоге нет других товаров в этой категории — сначала добавьте их в «Каталог».')
-      return
-    }
+    if (!match) return
     setLines((prev) => [...prev, { id: genId('line'), referenceProductId: reference.id, productId: match.id, qty: 1 }])
     setSearch('')
   }
 
-  function addItemDirectly(product: Product) {
-    setLines((prev) => [...prev, { id: genId('line'), productId: product.id, qty: 1 }])
-  }
+  const updateLine = (id: string, patch: Partial<QuoteLine>) => setLines((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l)))
+  const removeLine = (id: string) => setLines((prev) => prev.filter((l) => l.id !== id))
 
-  function updateLine(id: string, patch: Partial<QuoteLine>) {
-    setLines((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l)))
-  }
+  const total = resolved.reduce((s, x) => s + x.offer.priceUSD * x.line.qty, 0)
+  const units = resolved.reduce((s, x) => s + x.line.qty, 0)
+  const referenceTotal = resolved.reduce((s, x) => s + (x.reference ? x.reference.priceUSD * x.line.qty : 0), 0)
+  const offerForReferenced = resolved.reduce((s, x) => s + (x.reference ? x.offer.priceUSD * x.line.qty : 0), 0)
 
-  function removeLine(id: string) {
-    setLines((prev) => prev.filter((l) => l.id !== id))
-  }
-
-  const total = lines.reduce((sum, l) => {
-    const p = catalog.find((p) => p.id === l.productId)
-    return sum + (p ? p.priceUSD * l.qty : 0)
-  }, 0)
-
-  const referenceTotal = lines.reduce((sum, l) => {
-    if (!l.referenceProductId) return sum
-    const ref = catalog.find((p) => p.id === l.referenceProductId)
-    return sum + (ref ? ref.priceUSD * l.qty : 0)
-  }, 0)
-
-  function buildWhatsappMessage() {
-    const parts = [`Коммерческое предложение ${quoteNumber} от ${COMPANY_NAME}`]
-    if (clientName) parts.push(`Клиент: ${clientName}`)
-    parts.push('')
-    for (const line of lines) {
-      const offer = catalog.find((p) => p.id === line.productId)
-      if (!offer) continue
-      parts.push(`• ${offer.brand} ${offer.model} × ${line.qty} — $${(offer.priceUSD * line.qty).toLocaleString()}`)
-    }
-    parts.push('')
-    parts.push(`Итого: $${total.toLocaleString()}`)
+  function messageText() {
+    const parts = [`Коммерческое предложение ${COMPANY_NAME}${meta.clientName ? ` для ${meta.clientName}` : ''}`, '']
+    resolved.forEach(({ line, offer }, i) => parts.push(`${i + 1}. ${offer.brand} ${offer.model} × ${line.qty} — ${money.fmt(offer.priceUSD * line.qty)}`))
+    parts.push('', `Итого: ${money.fmt(total)}`)
     return parts.join('\n')
+  }
+
+  async function exportExcel() {
+    const uzs = money.currency === 'UZS'
+    const price = (usd: number) => (uzs ? Math.round(usd * money.rate) : usd)
+    await downloadXlsx(safeFileName(`КП ${meta.clientName || COMPANY_NAME} ${new Date().toLocaleDateString('ru-RU')}`), [
+      {
+        name: 'Спецификация',
+        title: `Коммерческое предложение${meta.clientName ? ` — ${meta.clientName}` : ''}`,
+        meta: [
+          `Дата: ${new Date().toLocaleDateString('ru-RU')}`,
+          uzs ? `Цены в сумах по курсу ${money.rate.toLocaleString('ru-RU')} сум за $1` : 'Цены в долларах США',
+        ],
+        columns: [
+          { header: '№', width: 5, kind: 'int' },
+          { header: 'Бренд', width: 14 },
+          { header: 'Модель', width: 26 },
+          { header: 'Категория', width: 18 },
+          { header: 'Описание', width: 60 },
+          { header: 'Кол-во', width: 8, kind: 'int' },
+          { header: uzs ? 'Цена, сум' : 'Цена, $', width: 14, kind: uzs ? 'money' : 'usd' },
+          { header: uzs ? 'Сумма, сум' : 'Сумма, $', width: 15, kind: uzs ? 'money' : 'usd' },
+        ],
+        rows: resolved.map(({ line, offer }, i) => [
+          i + 1,
+          offer.brand,
+          offer.model,
+          CATEGORY_LABELS[offer.category],
+          productSummary(offer),
+          line.qty,
+          price(offer.priceUSD),
+          price(offer.priceUSD * line.qty),
+        ]),
+        totals: [[null, 'Итого', null, null, null, units, null, price(total)]],
+      },
+    ])
   }
 
   return (
     <div>
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3 no-print">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">Коммерческое предложение</h1>
-          <p className="text-sm text-slate-500">
-            Добавьте товары в предложение. Если клиент принёс список конкурента — впишите его модель, система сама
-            подберёт наш аналог с характеристиками и ценой.
+          <h1 className="text-xl font-semibold text-[var(--text)]">Коммерческое предложение</h1>
+          <p className="max-w-2xl text-sm text-[var(--text-muted)]">
+            Собирайте позиции из каталога и калькуляторов — или впишите модель из списка клиента, и мы подберём аналог. Готовое КП — в PDF от вашего имени, в Excel или сразу в мессенджер.
           </p>
         </div>
-        {lines.length > 0 && (
+        {resolved.length > 0 && (
           <div className="flex flex-wrap items-center gap-2">
-            <a
-              href={whatsappLink(buildWhatsappMessage())}
-              target="_blank"
-              rel="noreferrer"
-              className="rounded border border-emerald-600 px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-50"
-            >
-              Отправить в WhatsApp
-            </a>
             <button
-              onClick={() => window.print()}
-              className="rounded bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700"
+              type="button"
+              onClick={() => {
+                // В PDF — та же валюта и курс, что сейчас на сайте; в окне КП их можно поменять
+                setMeta((prev) => ({ ...prev, currency: money.currency, uzsRate: money.rate }))
+                setShowPdf(true)
+              }}
+              className="rounded-lg px-4 py-2 text-sm font-semibold"
+              style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-ink)' }}
             >
-              Печать / сохранить как PDF
+              КП в PDF
             </button>
+            <button type="button" onClick={exportExcel} className={btn}>
+              Excel
+            </button>
+            <a href={whatsappLink(messageText())} target="_blank" rel="noreferrer" className="rounded-lg border border-emerald-600 px-3 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50">
+              WhatsApp
+            </a>
+            <a href={telegramShareLink(messageText())} target="_blank" rel="noreferrer" className={btn}>
+              Telegram
+            </a>
           </div>
         )}
       </div>
 
-      <div className="mb-6 rounded-lg border border-slate-200 bg-white p-4 no-print">
-        <div className="mb-3">
-          <label className="block text-sm font-medium text-slate-700">Клиент / объект (для шапки КП)</label>
-          <input
-            className="mt-1 w-full max-w-sm rounded border border-slate-300 px-2 py-1.5 text-sm"
-            placeholder="Например: ТОО «Ромашка», офис в Ташкенте"
-            value={clientName}
-            onChange={(e) => setClientName(e.target.value)}
-          />
+      <div className="mb-5 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
+        <div className="grid gap-3 md:grid-cols-[260px_minmax(0,1fr)]">
+          <label className="block">
+            <span className="text-xs font-medium text-[var(--text-muted)]">Клиент / объект</span>
+            <input
+              className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)]"
+              placeholder="ООО «Ромашка», офис в Ташкенте"
+              value={meta.clientName}
+              onChange={(e) => setMeta((prev) => ({ ...prev, clientName: e.target.value }))}
+            />
+          </label>
+          <label className="block">
+            <span className="text-xs font-medium text-[var(--text-muted)]">Добавить товар: наша модель или модель из списка клиента</span>
+            <input
+              className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)]"
+              placeholder="Например: EAP650, U6-LR, TL-SG3428MP или «PoE 24»"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </label>
         </div>
-        <label className="block text-sm font-medium text-slate-700">Модель товара конкурента (необязательно)</label>
-        <input
-          className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
-          placeholder="Например: RG-EG105G, Ubiquiti U6-LR или TL-SG3428MP"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
         {searchResults.length > 0 && (
-          <div className="mt-2 divide-y divide-slate-100 rounded border border-slate-200">
-            {searchResults.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => addReferenceItem(p)}
-                className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-slate-50"
-              >
-                <span>
-                  <span className="font-medium">{p.brand} {p.model}</span>{' '}
-                  <span className="text-slate-400">${p.priceUSD}</span>
-                </span>
-                <span className="text-blue-600">+ добавить</span>
-              </button>
-            ))}
-          </div>
-        )}
-        {search.trim() && searchResults.length === 0 && (
-          <p className="mt-2 text-sm text-slate-400">
-            Не найдено в каталоге. Добавьте его во вкладке «Каталог», либо выберите товар напрямую ниже.
-          </p>
-        )}
-
-        <details className="mt-3">
-          <summary className="cursor-pointer text-sm font-medium text-blue-600">+ добавить товар в КП напрямую</summary>
-          <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {catalog.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => addItemDirectly(p)}
-                className="rounded border border-slate-200 px-2 py-1.5 text-left text-xs hover:bg-slate-50"
-              >
-                {p.brand} {p.model}
-              </button>
-            ))}
-          </div>
-        </details>
-      </div>
-
-      {lines.length === 0 ? (
-        <p className="text-sm text-slate-400 no-print">Список пуст. Впишите модель товара клиента выше, чтобы начать.</p>
-      ) : (
-        <div>
-          <div className="hidden print:block mb-6 border-b-2 border-slate-900 pb-4">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3">
-                <div
-                  className="flex h-11 w-11 items-center justify-center rounded-xl text-base font-extrabold text-white"
-                  style={{ backgroundColor: '#2f5fe0' }}
-                >
-                  S
-                </div>
-                <div>
-                  <p className="text-lg font-extrabold text-slate-900">{COMPANY_NAME}</p>
-                  <p className="text-xs text-slate-500">{COMPANY_TAGLINE}</p>
-                </div>
-              </div>
-              <div className="text-right text-sm text-slate-500">
-                <p className="font-medium text-slate-900">{quoteNumber}</p>
-                <p>{quoteDate.toLocaleDateString('ru-RU')}</p>
-              </div>
-            </div>
-            <h1 className="mt-4 text-xl font-semibold text-slate-900">Коммерческое предложение</h1>
-            {clientName && <p className="text-slate-600">Клиент / объект: {clientName}</p>}
-          </div>
-
-          <div className="space-y-3">
-            {lines.map((line) => {
-              const offer = catalog.find((p) => p.id === line.productId)
-              if (!offer) return null
-              const reference = line.referenceProductId
-                ? catalog.find((p) => p.id === line.referenceProductId)
-                : undefined
-              const alternatives = alternativesInCategory(offer.category, catalog)
+          <div className="mt-3 divide-y divide-[var(--border)] overflow-hidden rounded-xl border border-[var(--border)]">
+            {searchResults.map((p) => {
+              const analog = findBestMatch(p, catalog)
               return (
-                <ComparisonCard
-                  key={line.id}
-                  reference={reference}
-                  offer={offer}
-                  alternatives={alternatives}
-                  qty={line.qty}
-                  onQtyChange={(qty) => updateLine(line.id, { qty })}
-                  onOfferChange={(id) => updateLine(line.id, { productId: id })}
-                  onRemove={() => removeLine(line.id)}
-                />
+                <div key={p.id} className="flex flex-wrap items-center gap-3 px-3 py-2">
+                  <ProductImage imageUrl={p.imageUrl} brand={p.brand} category={p.category} size="sm" />
+                  <div className="min-w-0 flex-1 text-sm">
+                    <span className="font-medium text-[var(--text)]">
+                      {p.brand} {p.model}
+                    </span>{' '}
+                    <span className="text-[var(--text-muted)]">· {money.fmt(p.priceUSD)}</span>
+                  </div>
+                  <button type="button" onClick={() => addDirect(p)} className="rounded-lg px-3 py-1.5 text-xs font-semibold" style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-ink)' }}>
+                    + В КП
+                  </button>
+                  {analog && (
+                    <button type="button" onClick={() => addAnalog(p)} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--text)] hover:bg-black/5" title={`Аналог: ${analog.brand} ${analog.model}`}>
+                      Заменить аналогом · {analog.brand}
+                    </button>
+                  )}
+                </div>
               )
             })}
           </div>
+        )}
+        {search.trim() && searchResults.length === 0 && <p className="mt-2 text-sm text-[var(--text-muted)]">Не нашли такую модель в каталоге — проверьте написание.</p>}
+      </div>
 
-          <div className="mt-6 rounded-lg border border-slate-200 bg-white p-4">
-            <div className="flex items-center justify-between text-sm text-slate-500">
-              <span>Позиций: {lines.length}</span>
-              {referenceTotal > 0 && <span>Сумма по списку клиента (ориентировочно): ${referenceTotal.toLocaleString()}</span>}
-            </div>
-            <div className="mt-1 flex items-center justify-between">
-              <span className="text-lg font-semibold text-slate-900">Итого наше предложение</span>
-              <span className="text-2xl font-bold text-slate-900">${total.toLocaleString()}</span>
-            </div>
-            {referenceTotal > 0 && (
-              <div className={`mt-1 text-sm font-medium ${total <= referenceTotal ? 'text-emerald-700' : 'text-amber-700'}`}>
-                {total <= referenceTotal
-                  ? `Выгода клиента: $${(referenceTotal - total).toLocaleString()}`
-                  : `Дороже списка клиента на $${(total - referenceTotal).toLocaleString()} — используйте плюсы товаров выше, чтобы обосновать разницу`}
-              </div>
+      {resolved.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-[var(--border)] px-6 py-12 text-center">
+          <p className="text-sm text-[var(--text-muted)]">КП пока пустое. Добавляйте товары кнопкой «В КП» в каталоге, в калькуляторах или поиском выше.</p>
+          {onOpenCatalog && (
+            <button type="button" onClick={onOpenCatalog} className="mt-4 rounded-lg px-4 py-2 text-sm font-semibold" style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-ink)' }}>
+              Перейти в каталог
+            </button>
+          )}
+        </div>
+      ) : (
+        <>
+          <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)]">
+            {resolved.map(({ line, offer, reference }) =>
+              reference ? (
+                <div key={line.id} className="border-b border-[var(--border)] p-3 last:border-0">
+                  <ComparisonCard
+                    reference={reference}
+                    offer={offer}
+                    alternatives={alternativesInCategory(offer.category, catalog)}
+                    qty={line.qty}
+                    onQtyChange={(qty) => updateLine(line.id, { qty })}
+                    onOfferChange={(id) => updateLine(line.id, { productId: id })}
+                    onRemove={() => removeLine(line.id)}
+                  />
+                </div>
+              ) : (
+                <div key={line.id} className="flex flex-wrap items-center gap-3 border-b border-[var(--border)] px-4 py-3 last:border-0">
+                  <button type="button" onClick={() => setOpenProduct(offer)} className="shrink-0" aria-label={`Подробнее: ${offer.model}`}>
+                    <ProductImage imageUrl={offer.imageUrl} brand={offer.brand} category={offer.category} size="md" />
+                  </button>
+                  <div className="min-w-[180px] flex-1">
+                    <button type="button" onClick={() => setOpenProduct(offer)} className="text-left text-sm font-medium text-[var(--text)] hover:underline">
+                      {offer.brand} {offer.model}
+                    </button>
+                    <div className="mt-0.5 flex flex-wrap gap-1">
+                      {factChips(offer).map((c) => (
+                        <span key={c} className="rounded bg-[var(--surface-alt)] px-1.5 py-0.5 text-[10.5px] text-[var(--text-muted)]">
+                          {c}
+                        </span>
+                      ))}
+                      <span className={`rounded px-1.5 py-0.5 text-[10.5px] font-medium ${STOCK_TONE[stockLabel(offer.stock).tone]}`}>{stockLabel(offer.stock).text}</span>
+                    </div>
+                  </div>
+                  <QtyStepper qty={line.qty} onChange={(qty) => updateLine(line.id, { qty })} />
+                  <div className="w-36 text-right">
+                    <div className="text-sm font-semibold text-[var(--text)]">{money.fmt(offer.priceUSD * line.qty)}</div>
+                    <div className="text-[11px] text-[var(--text-muted)]">
+                      {money.fmt(offer.priceUSD)} × {line.qty}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeLine(line.id)}
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--text-muted)] hover:bg-black/5"
+                    aria-label={`Убрать ${offer.model} из КП`}
+                  >
+                    <CloseIcon className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ),
             )}
           </div>
 
-          <div className="hidden print:flex mt-8 items-center justify-between border-t border-slate-200 pt-3 text-xs text-slate-500">
-            <span>{COMPANY_NAME} · {COMPANY_ADDRESS}</span>
-            <span>WhatsApp: {WHATSAPP_DISPLAY}</span>
+          <div className="mt-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-[var(--text-muted)]">
+              <span>
+                Позиций: {resolved.length} · единиц: {units}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirm('Очистить КП? Все позиции будут удалены.')) setLines([])
+                }}
+                className="text-[var(--text-muted)] hover:underline"
+              >
+                Очистить КП
+              </button>
+            </div>
+            <div className="mt-1 flex items-center justify-between">
+              <span className="text-lg font-semibold text-[var(--text)]">Итого</span>
+              <span className="text-2xl font-bold text-[var(--text)]">{money.fmt(total)}</span>
+            </div>
+            {referenceTotal > 0 && (
+              <div className={`mt-1 text-sm font-medium ${offerForReferenced <= referenceTotal ? 'text-emerald-700' : 'text-amber-700'}`}>
+                {offerForReferenced <= referenceTotal
+                  ? `По позициям из списка клиента выгода: ${money.fmt(referenceTotal - offerForReferenced)}`
+                  : `По позициям из списка клиента дороже на ${money.fmt(offerForReferenced - referenceTotal)} — обоснуйте разницу плюсами товаров`}
+              </div>
+            )}
           </div>
-        </div>
+        </>
       )}
+
+      {showPdf && (
+        <ProposalDialog source={{ kind: 'list', items: resolved.map((x) => ({ product: x.offer, qty: x.line.qty })) }} onClose={() => setShowPdf(false)} />
+      )}
+      {openProduct && <ProductDetailDialog key={openProduct.id} product={openProduct} catalog={catalog} onClose={() => setOpenProduct(null)} />}
     </div>
   )
 }

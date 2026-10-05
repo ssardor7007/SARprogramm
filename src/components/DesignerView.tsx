@@ -18,6 +18,9 @@ import {
   type WallMaterial,
 } from '../lib/designer'
 import { sendDesignToBuildingPlan } from '../lib/buildingPlanBridge'
+import { useQuoteLines } from '../lib/cart'
+import { useMoney } from '../lib/money'
+import { downloadXlsx } from '../lib/xlsx'
 import { SHOW_VIDEO_SURVEILLANCE } from '../lib/features'
 import { addProductsToRack } from '../lib/rackCart'
 import { genId, usePersistedState } from '../lib/storage'
@@ -41,6 +44,84 @@ const TIER_ACCENT: Record<Tier, { border: string; badge: string; ring: string }>
   mid: { border: 'border-blue-200', badge: 'bg-blue-100 text-blue-700', ring: '' },
   premium: { border: 'border-violet-200', badge: 'bg-violet-100 text-violet-700', ring: '' },
 }
+
+/**
+ * Быстрый старт: типовые объекты, как в конфигураторах крупных магазинов. Одним нажатием
+ * заполняют форму реалистичными промерами и нагрузкой — дальше монтажник правит под свой объект.
+ */
+const PRESETS: { id: string; label: string; sub: string; input: Partial<DesignerInput> }[] = [
+  {
+    id: 'small-office',
+    label: 'Небольшой офис',
+    sub: 'до 15 сотрудников',
+    input: { buildingType: 'office', floors: [{ lengthM: 16, widthM: 10, ceilingHeightM: 3, rooms: 4 }], wallMaterial: 'drywall', workstations: 10, mobileDevices: 15, outdoorCoverage: false },
+  },
+  {
+    id: 'office',
+    label: 'Офис компании',
+    sub: '40–60 сотрудников, 2 этажа',
+    input: {
+      buildingType: 'office',
+      floors: [
+        { lengthM: 30, widthM: 16, ceilingHeightM: 3, rooms: 8 },
+        { lengthM: 30, widthM: 16, ceilingHeightM: 3, rooms: 8 },
+      ],
+      wallMaterial: 'brick',
+      workstations: 45,
+      mobileDevices: 70,
+      outdoorCoverage: false,
+    },
+  },
+  {
+    id: 'cafe',
+    label: 'Кафе / ресторан',
+    sub: 'гостевой Wi‑Fi и терраса',
+    input: { buildingType: 'retail', floors: [{ lengthM: 20, widthM: 12, ceilingHeightM: 3.5, rooms: 2 }], wallMaterial: 'open', workstations: 3, mobileDevices: 60, outdoorCoverage: true, outdoorLengthM: 15, outdoorWidthM: 8 },
+  },
+  {
+    id: 'shop',
+    label: 'Магазин',
+    sub: 'торговый зал и склад',
+    input: { buildingType: 'retail', floors: [{ lengthM: 30, widthM: 20, ceilingHeightM: 4, rooms: 2 }], wallMaterial: 'open', workstations: 5, mobileDevices: 40, outdoorCoverage: false },
+  },
+  {
+    id: 'hotel',
+    label: 'Гостиница',
+    sub: '4 этажа, ~60 номеров',
+    input: {
+      buildingType: 'hotel',
+      floors: Array.from({ length: 4 }, () => ({ lengthM: 42, widthM: 14, ceilingHeightM: 3, rooms: 16 })),
+      wallMaterial: 'brick',
+      workstations: 8,
+      mobileDevices: 150,
+      outdoorCoverage: false,
+    },
+  },
+  {
+    id: 'warehouse',
+    label: 'Склад',
+    sub: 'высокие потолки, ТСД',
+    input: { buildingType: 'warehouse', floors: [{ lengthM: 60, widthM: 30, ceilingHeightM: 8, rooms: 1 }], wallMaterial: 'open', workstations: 6, mobileDevices: 20, outdoorCoverage: false },
+  },
+  {
+    id: 'house',
+    label: 'Частный дом',
+    sub: '2 этажа и двор',
+    input: {
+      buildingType: 'apartment',
+      floors: [
+        { lengthM: 14, widthM: 12, ceilingHeightM: 3, rooms: 5 },
+        { lengthM: 14, widthM: 12, ceilingHeightM: 3, rooms: 5 },
+      ],
+      wallMaterial: 'brick',
+      workstations: 3,
+      mobileDevices: 14,
+      outdoorCoverage: true,
+      outdoorLengthM: 20,
+      outdoorWidthM: 15,
+    },
+  },
+]
 
 /** Строка ручной правки карточки сегмента — товар и количество, которые задал сам пользователь. */
 interface OverrideLine {
@@ -79,6 +160,9 @@ export function DesignerView({ catalog, onSentToRack, onSentToPlan }: Props) {
   const [tierOverrides, setTierOverrides] = usePersistedState<Record<string, OverrideLine[]>>('designer-tier-overrides', {})
   const [editingKey, setEditingKey] = useState<string | null>(null)
   const [editSearch, setEditSearch] = useState('')
+  const money = useMoney()
+  const quote = useQuoteLines()
+  const [addedKey, setAddedKey] = useState<string | null>(null)
 
   const brandsToShow: BrandFilter[] = selectedBrands.length > 0 ? selectedBrands : ['all']
   const resultsByBrand = brandsToShow.map((brand) => ({
@@ -133,6 +217,53 @@ export function DesignerView({ catalog, onSentToRack, onSentToPlan }: Props) {
     return override
       .map((l) => ({ product: catalog.find((p) => p.id === l.productId), qty: l.qty }))
       .filter((l): l is { product: Product; qty: number } => !!l.product)
+  }
+
+  function addTierToQuote(tierResult: TierResult, key: string) {
+    for (const l of effectiveLines(tierResult, key)) quote.add(l.product.id, l.qty)
+    setAddedKey(key)
+  }
+
+  async function exportTiers() {
+    const uzs = money.currency === 'UZS'
+    const price = (usd: number) => (uzs ? Math.round(usd * money.rate) : usd)
+    const sheets = resultsByBrand.flatMap(({ brand, result: r }) =>
+      r.tiers.map((t) => {
+        const key = `${brand}:${t.tier}`
+        const lines = effectiveLines(t, key)
+        const totalUSD = lines.reduce((sum, l) => sum + l.product.priceUSD * l.qty, 0)
+        return {
+          name: `${brand === 'all' ? '' : `${brand} `}${t.tierLabel}`,
+          title: `Вариант «${t.tierLabel}»${brand === 'all' ? '' : ` · ${brand}`}`,
+          meta: [
+            `${BUILDING_TYPE_LABELS[input.buildingType]}, ${totalAreaM2.toLocaleString('ru-RU')} м², этажей: ${input.floors.length}`,
+            `Рабочих мест: ${input.workstations}, мобильных устройств: ${input.mobileDevices}`,
+          ],
+          columns: [
+            { header: 'Роль', width: 22 },
+            { header: 'Бренд', width: 14 },
+            { header: 'Модель', width: 26 },
+            { header: 'Кол-во', width: 8, kind: 'int' as const },
+            { header: uzs ? 'Цена, сум' : 'Цена, $', width: 14, kind: uzs ? ('money' as const) : ('usd' as const) },
+            { header: uzs ? 'Сумма, сум' : 'Сумма, $', width: 15, kind: uzs ? ('money' as const) : ('usd' as const) },
+          ],
+          rows: lines.map((l) => [
+            t.lines.find((x) => x.product?.id === l.product.id)?.role ?? CATEGORY_LABELS[l.product.category],
+            l.product.brand,
+            l.product.model,
+            l.qty,
+            price(l.product.priceUSD),
+            price(l.product.priceUSD * l.qty),
+          ]),
+          totals: [['Итого', null, null, null, null, price(totalUSD)]],
+        }
+      }),
+    )
+    await downloadXlsx(`Варианты оснащения ${BUILDING_TYPE_LABELS[input.buildingType]} ${new Date().toLocaleDateString('ru-RU')}`, sheets)
+  }
+
+  function applyPreset(preset: (typeof PRESETS)[number]) {
+    setInput((prev) => ({ ...prev, ...preset.input }))
   }
 
   function sendTierToRack(tierResult: TierResult, key: string) {
@@ -224,6 +355,22 @@ export function DesignerView({ catalog, onSentToRack, onSentToPlan }: Props) {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[380px_1fr]">
         <div className="no-print space-y-4 rounded-lg border border-slate-200 bg-white p-4">
+          <div>
+            <span className="block text-sm font-medium text-slate-700">Быстрый старт — типовой объект</span>
+            <div className="mt-2 grid grid-cols-2 gap-1.5">
+              {PRESETS.map((pr) => (
+                <button
+                  key={pr.id}
+                  type="button"
+                  onClick={() => applyPreset(pr)}
+                  className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-left hover:border-[var(--accent)] hover:bg-blue-50"
+                >
+                  <span className="block text-xs font-semibold text-slate-800">{pr.label}</span>
+                  <span className="block text-[10.5px] leading-tight text-slate-500">{pr.sub}</span>
+                </button>
+              ))}
+            </div>
+          </div>
           <div>
             <label className="block text-sm font-medium text-slate-700">Тип объекта</label>
             <select
@@ -371,7 +518,7 @@ export function DesignerView({ catalog, onSentToRack, onSentToPlan }: Props) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700">Бюджет клиента, $</label>
+            <label className="block text-sm font-medium text-slate-700">Бюджет клиента, {money.symbol}</label>
             <p className="mt-0.5 text-xs text-slate-400">
               Необязательно. Если указать — покажем, какие сегменты укладываются, и подскажем лучший вариант в
               рамках этой суммы.
@@ -381,8 +528,8 @@ export function DesignerView({ catalog, onSentToRack, onSentToPlan }: Props) {
               min={0}
               placeholder="Без ограничения"
               className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
-              value={input.maxBudgetUSD || ''}
-              onChange={(e) => set('maxBudgetUSD', Math.max(0, Number(e.target.value)))}
+              value={input.maxBudgetUSD ? money.fromUSD(input.maxBudgetUSD) : ''}
+              onChange={(e) => set('maxBudgetUSD', Math.max(0, money.toUSD(Number(e.target.value))))}
             />
           </div>
 
@@ -635,9 +782,9 @@ export function DesignerView({ catalog, onSentToRack, onSentToPlan }: Props) {
 
                       <p className="mb-2 text-xs text-slate-400">{displayBrands.join(', ') || '—'}</p>
 
-                      <div className="mb-1 text-2xl font-bold text-slate-900">${displayTotalUSD.toLocaleString()}</div>
+                      <div className="mb-1 text-2xl font-bold text-slate-900">{money.fmt(displayTotalUSD)}</div>
                       <p className="mb-2 text-xs text-slate-400">
-                        ≈${(r.concurrentDevices > 0 ? displayTotalUSD / r.concurrentDevices : displayTotalUSD).toFixed(1)} на одного
+                        ≈{money.fmt(r.concurrentDevices > 0 ? displayTotalUSD / r.concurrentDevices : displayTotalUSD)} на одного
                         одновременного клиента
                       </p>
                       {input.maxBudgetUSD > 0 && (
@@ -645,7 +792,7 @@ export function DesignerView({ catalog, onSentToRack, onSentToPlan }: Props) {
                           className={`mb-2 flex items-center gap-1 text-xs font-medium ${fitsBudget ? 'text-emerald-600' : 'text-red-600'}`}
                         >
                           {fitsBudget ? <CheckIcon className="h-3.5 w-3.5" /> : <AlertIcon className="h-3.5 w-3.5" />}
-                          {fitsBudget ? 'В бюджете' : `Превышает бюджет на $${overBudgetUSD.toLocaleString()}`}
+                          {fitsBudget ? 'В бюджете' : `Превышает бюджет на ${money.fmt(overBudgetUSD)}`}
                         </p>
                       )}
 
@@ -743,7 +890,7 @@ export function DesignerView({ catalog, onSentToRack, onSentToPlan }: Props) {
                                   <span className="truncate">
                                     {p.brand} {p.model}
                                   </span>
-                                  <span className="shrink-0 text-slate-400">${p.priceUSD}</span>
+                                  <span className="shrink-0 text-slate-400">{money.fmt(p.priceUSD)}</span>
                                 </button>
                               ))}
                             </div>
@@ -763,6 +910,14 @@ export function DesignerView({ catalog, onSentToRack, onSentToPlan }: Props) {
                       )}
 
                       <div className="mt-1 flex flex-col gap-1.5">
+                        <button
+                          onClick={() => addTierToQuote(t, key)}
+                          disabled={sendDisabled}
+                          className="no-print rounded px-2 py-1.5 text-xs font-semibold disabled:cursor-default disabled:opacity-40"
+                          style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-ink)' }}
+                        >
+                          {addedKey === key ? 'Добавлено в КП ✓ — ещё раз?' : 'Весь вариант в КП'}
+                        </button>
                         <button
                           onClick={() => sendTierToRack(t, key)}
                           disabled={sendDisabled}
@@ -786,10 +941,10 @@ export function DesignerView({ catalog, onSentToRack, onSentToPlan }: Props) {
           ))}
 
           <button
-            onClick={() => window.print()}
-            className="no-print mt-4 rounded bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700"
+            onClick={exportTiers}
+            className="no-print mt-4 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
           >
-            Печать / сохранить как PDF
+            Скачать все варианты в Excel
           </button>
         </div>
       </div>

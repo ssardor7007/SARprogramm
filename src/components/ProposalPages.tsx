@@ -36,9 +36,10 @@ export interface FloorImage {
 interface Props {
   profile: InstallerProfile
   meta: ProposalMeta
-  result: BuildingPlanResult
+  /** План здания — для КП «Wi‑Fi под ключ». Без него получается КП-спецификация из списка товаров. */
+  result?: BuildingPlanResult
   totals: ProposalTotals
-  floorImages: Record<string, FloorImage>
+  floorImages?: Record<string, FloorImage>
   date: Date
   /** Для предпросмотра и снимка: ref на каждую страницу */
   pageRef?: (index: number, el: HTMLDivElement | null) => void
@@ -211,16 +212,49 @@ function Metric({ value, label, accent }: { value: string; label: string; accent
   )
 }
 
+function coverContent(result: BuildingPlanResult | undefined, totals: ProposalTotals) {
+  if (result) {
+    const floorsWithAps = result.perFloor.filter((f) => f.aps.length > 0)
+    const area = Math.round(result.perFloor.reduce((s, f) => s + floorAreaM2(f), 0))
+    return {
+      title: 'Беспроводная сеть Wi‑Fi под ключ',
+      metrics: [
+        [String(floorsWithAps.length || result.perFloor.length), 'этажей в проекте'],
+        [String(result.totalAPCount), 'точек доступа Wi‑Fi'],
+        [area > 0 ? `${area.toLocaleString('ru-RU')}` : '—', 'м² площадь покрытия'],
+        [`${Math.ceil(result.totalCableM).toLocaleString('ru-RU')}`, 'м кабельных трасс'],
+      ],
+      included: [
+        'Подбор оборудования под нагрузку объекта',
+        'Расчёт покрытия Wi‑Fi по плану этажей',
+        totals.cableUSD > 0 ? 'Кабельные трассы и коммутация' : 'Коммутация и шлюз в интернет',
+        totals.installUSD > 0 ? 'Монтаж, настройка и сдача сети' : 'Схема размещения для монтажа',
+      ],
+    }
+  }
+  const units = totals.lines.reduce((s, l) => s + l.qty, 0)
+  const brands = new Set(totals.lines.map((l) => l.product.brand)).size
+  const categories = new Set(totals.lines.map((l) => l.product.category)).size
+  return {
+    title: 'Поставка сетевого оборудования',
+    metrics: [
+      [String(totals.lines.length), 'позиций в спецификации'],
+      [units.toLocaleString('ru-RU'), 'единиц оборудования'],
+      [String(brands), brands === 1 ? 'производитель' : 'производителей'],
+      [String(categories), 'типов оборудования'],
+    ],
+    included: [
+      'Подбор оборудования под задачи объекта',
+      'Сравнение аналогов разных брендов',
+      'Гарантия производителя на оборудование',
+      totals.installUSD > 0 ? 'Монтаж, настройка и сдача сети' : 'Консультация по монтажу и настройке',
+    ],
+  }
+}
+
 function Cover({ profile, meta, result, totals, date, validUntil }: Omit<Props, 'floorImages' | 'pageRef' | 'onPageCount'> & { validUntil: Date }) {
   const accent = profile.accent
-  const floorsWithAps = result.perFloor.filter((f) => f.aps.length > 0)
-  const area = Math.round(result.perFloor.reduce((s, f) => s + floorAreaM2(f), 0))
-  const included = [
-    'Подбор оборудования под нагрузку объекта',
-    'Расчёт покрытия Wi‑Fi по плану этажей',
-    totals.cableUSD > 0 ? 'Кабельные трассы и коммутация' : 'Коммутация и шлюз в интернет',
-    totals.installUSD > 0 ? 'Монтаж, настройка и сдача сети' : 'Схема размещения для монтажа',
-  ]
+  const { title, metrics, included } = coverContent(result, totals)
   const components = [
     'оборудование',
     totals.cableUSD > 0 ? 'кабельные трассы' : '',
@@ -247,7 +281,7 @@ function Cover({ profile, meta, result, totals, date, validUntil }: Omit<Props, 
         <div style={{ position: 'absolute', left: PAD_X, right: 180, top: 176, color: '#ffffff' }}>
           <div style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '0.26em', opacity: 0.72 }}>КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ</div>
           <div style={{ fontSize: 42, fontWeight: 800, lineHeight: 1.08, letterSpacing: '-0.03em', marginTop: 16 }}>
-            Беспроводная сеть Wi‑Fi под ключ
+            {title}
           </div>
           <div style={{ fontSize: 17, marginTop: 16, opacity: 0.9, lineHeight: 1.45 }}>
             {meta.objectName ? `для объекта «${meta.objectName}»` : 'для вашего объекта'}
@@ -283,10 +317,9 @@ function Cover({ profile, meta, result, totals, date, validUntil }: Omit<Props, 
       </div>
 
       <div style={{ position: 'absolute', left: PAD_X, right: PAD_X, top: 552, display: 'flex', gap: 14 }}>
-        <Metric accent={accent} value={String(floorsWithAps.length || result.perFloor.length)} label="этажей в проекте" />
-        <Metric accent={accent} value={String(result.totalAPCount)} label="точек доступа Wi‑Fi" />
-        <Metric accent={accent} value={area > 0 ? `${area.toLocaleString('ru-RU')}` : '—'} label="м² площадь покрытия" />
-        <Metric accent={accent} value={`${Math.ceil(result.totalCableM).toLocaleString('ru-RU')}`} label="м кабельных трасс" />
+        {metrics.map(([value, label]) => (
+          <Metric key={label} accent={accent} value={value} label={label} />
+        ))}
       </div>
 
       <div
@@ -634,11 +667,13 @@ function paginate(blocks: Block[], tableHeader: ReactNode, tableHeaderH: number)
   return pages
 }
 
-export function ProposalPages({ profile, meta, result, totals, floorImages, date, pageRef, onPageCount }: Props) {
+export function ProposalPages({ profile, meta, result, totals, floorImages = {}, date, pageRef, onPageCount }: Props) {
   const accent = profile.accent
   const validUntil = new Date(date.getTime() + Math.max(1, meta.validDays) * 86_400_000)
 
-  const floorBlocks: Block[] = [
+  const floorBlocks: Block[] = !result
+    ? []
+    : [
     {
       h: 104,
       node: (

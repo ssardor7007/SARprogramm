@@ -88,6 +88,11 @@
   :root[data-sar-theme='dark'] .bg-white {
     background-color: var(--surface);
   }
+  /* Фото товаров сняты на белом фоне — плитку под ними оставляем белой и ночью */
+  :root[data-sar-theme='dark'] .photo-tile {
+    background-color: #ffffff;
+    border-color: transparent;
+  }
   :root[data-sar-theme='dark'] .hover\:bg-white:hover {
     background-color: var(--surface-alt);
   }
