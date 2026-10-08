@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Счётчик нажатий</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #f2f4f8; color: #1d2433; margin: 0; padding: 24px 16px; display: flex; justify-content: center; }
+  main { width: 100%; max-width: 420px; text-align: center; }
+  #count { font-size: 96px; font-weight: 700; line-height: 1; margin: 16px 0; }
+  #count.pop { animation: pop .15s ease-out; }
+  @keyframes pop { 50% { transform: scale(1.15); } }
+  #click { font-size: 24px; padding: 20px 48px; border: 0; border-radius: 16px; background: #2f6fed; color: #fff; cursor: pointer; }
+  #click:active { background: #1f55c0; }
+  #reset { margin-top: 12px; padding: 8px 20px; border: 1px solid #b8c0cf; border-radius: 10px; background: #fff; cursor: pointer; }
+  #log { list-style: none; margin: 24px 0 0; padding: 0; max-height: 40vh; overflow-y: auto; text-align: left; background: #fff; border-radius: 12px; }
+  #log li { padding: 8px 14px; border-bottom: 1px solid #eef0f4; display: flex; justify-content: space-between; }
+  #log li:last-child { border-bottom: 0; }
+  #log:empty::before { content: "Нажатий пока нет"; display: block; padding: 12px; color: #8a93a6; text-align: center; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Счётчик нажатий</h1>
+  <div id="count">0</div>
+  <button id="click">Нажми</button><br />
+  <button id="reset">Сбросить</button>
+  <ul id="log"></ul>
+</main>
+<script>
+  let n = 0;
+  const countEl = document.getElementById('count');
+  const log = document.getElementById('log');
+
+  document.getElementById('click').addEventListener('click', () => {
+    n++;
+    countEl.textContent = n;
+    countEl.classList.remove('pop');
+    void countEl.offsetWidth;
+    countEl.classList.add('pop');
+
+    const li = document.createElement('li');
+    const time = new Date().toLocaleTimeString('ru-RU');
+    li.innerHTML = `<span>Нажатие №${n}</span><span>${time}</span>`;
+    log.prepend(li);
+  });
+
+  document.getElementById('reset').addEventListener('click', () => {
+    n = 0;
+    countEl.textContent = 0;
+    log.innerHTML = '';
+  });
+</script>
+</body>
+</html>
